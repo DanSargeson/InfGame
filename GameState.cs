@@ -1,10 +1,17 @@
-﻿using System;
+﻿using Android.Media;
+using System;
 using System.Collections.Generic;
 
 namespace InfGame
 {
     public sealed class GameState
     {
+        // Later, you can upgrade this to 20, 30, etc. to speed up the game.
+        public double TargetTicksPerSecond { get; private set; } = 10.0;
+
+        // Helper: How long is one tick? (e.g., 0.1s)
+        public double TickDuration => 1.0 / TargetTicksPerSecond;
+
         public BigDouble Coins { get; private set; }
         public BigDouble CoinsPerSecond { get; private set; }
 
@@ -14,9 +21,13 @@ namespace InfGame
         public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
         public DateTimeOffset LastSavedUtc { get; private set; } = DateTimeOffset.UtcNow;
 
-        public void Tick(double dtSeconds) {
-            if (dtSeconds <= 0) return;
-            Coins += CoinsPerSecond * dtSeconds;
+        public void Tick() {
+            //add exactly one "Tick's worth" of production
+        // Math: (Coins/Sec) * (Seconds/Tick)
+        Coins += CoinsPerSecond * TickDuration;
+
+            // FUTURE: This is where you add probability logic
+            // if (Random.NextDouble() < 0.01) FindGem();
         }
 
         // --- New Data-Driven Logic ---
@@ -65,6 +76,15 @@ namespace InfGame
         public void Tap() {
             Coins += TapValue;
         }
+
+        //TODO
+        // Future Concept
+        //void ApplyOfflineProgress(double seconds) {
+        //    int ticksToRun = (int)(seconds * TargetTicksPerSecond);
+        //    for (int i = 0; i < ticksToRun; i++) {
+        //        Tick(); // Actually runs the game logic 50,000 times instantly
+        //    }
+        //}
 
         public void ApplyOfflineProgress(DateTimeOffset lastSavedUtc, DateTimeOffset nowUtc, double maxOfflineSeconds = 28800) {
             var seconds = (nowUtc - lastSavedUtc).TotalSeconds;

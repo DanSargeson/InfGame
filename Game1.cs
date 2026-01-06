@@ -21,6 +21,9 @@ namespace InfGame
         private UiButton _tapButton;
         private List<UiButton> _genButtons = new();
 
+        //The Time Accumulator
+        private double _accumulator = 0.0;
+
         // Scroll State
         private float _scrollY = 0;
         private float _maxScroll = 0;
@@ -48,8 +51,6 @@ namespace InfGame
 
         protected override void Initialize() {
             base.Initialize();
-            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _savePath = Path.Combine(dir, "infgame_save.json");
 
             // Uncomment once to reset if you have corrupted saves
             // if (File.Exists(_savePath)) File.Delete(_savePath); 
@@ -61,13 +62,34 @@ namespace InfGame
             _pixel = new Texture2D(GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
 
+            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            _savePath = Path.Combine(dir, "infgame_save.json");
             _needsLayout = true;
             LoadOrCreateSave();
         }
 
         protected override void Update(GameTime gameTime) {
             var dt = gameTime.ElapsedGameTime.TotalSeconds;
+            // 1. Add real time to the "Bank"
+            _accumulator += gameTime.ElapsedGameTime.TotalSeconds;
 
+            // 2. Spend time to run Ticks
+            // While we have enough time banked for a tick, run it.
+            var tickRate = _state.TickDuration;
+
+            // Safety: Prevent "Spiral of Death" if game lags massively
+            if (_accumulator > 1.0) _accumulator = 1.0;
+
+            while (_accumulator >= tickRate) {
+                _state.Tick(); // Logic runs here
+                _accumulator -= tickRate;
+
+                // UI Updates that rely on logic (like disabling buttons) 
+                // can technically happen here or once per frame below.
+                UpdateGeneratorButtons(tickRate);
+            }
+
+            // 3. Handle Input (Input is usually per-frame, not per-tick)
             if (_needsLayout) {
                 LayoutUI();
                 _needsLayout = false;
@@ -75,11 +97,11 @@ namespace InfGame
 
             HandleInput();
 
-            // Update Logic for Flash Timers & Text
+            // Update visual timers (animations) using Real Time, not Tick Time
             _tapButton.Update(dt);
-            UpdateGeneratorButtons(dt);
+            UpdateGeneratorButtons(0);
 
-            _state.Tick(dt);
+            //_state.Tick();
             base.Update(gameTime);
         }
 
