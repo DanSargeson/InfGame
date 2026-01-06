@@ -27,6 +27,8 @@ namespace InfGame
      //   private UiButton _tapButton;
         private List<UiButton> _genButtons = new();
 
+        private UiButton _prestigeButton;
+
         private List<FloatingText> _particles = new();
 
         //The Time Accumulator
@@ -104,6 +106,19 @@ namespace InfGame
                 // UI Updates that rely on logic (like disabling buttons) 
                 // can technically happen here or once per frame below.
                 UpdateGeneratorButtons(tickRate);
+            }
+
+
+            // Update Prestige Button
+            var potentialGain = _state.CalculatePrestigeGain();
+
+            if (potentialGain > 0) {
+                _prestigeButton.Text = $"PRESTIGE: +{NumberFormat.Compact(potentialGain)} POINTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
+                _prestigeButton.IsActive = true;
+            }
+            else {
+                _prestigeButton.Text = "Prestige Locked (Need 1M Coins)";
+                _prestigeButton.IsActive = false;
             }
 
             // 3. Handle Input (Input is usually per-frame, not per-tick)
@@ -241,11 +256,17 @@ namespace InfGame
         private void DrawHeader() {
             var coinsText = $"Coins: {NumberFormat.Compact(_state.Coins)}";
             var cpsText = $"CPS: {NumberFormat.Compact(_state.CoinsPerSecond, 2)}";
-
+            _prestigeButton.Draw(_spriteBatch, _font, _pixel);
             _spriteBatch.DrawString(_font, coinsText, new Vector2(50, 200), Color.White);
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
             _toggleButton.Draw(_spriteBatch, _font, _pixel);
             //_tapButton.Draw(_spriteBatch, _font, _pixel);
+            var pad = 50;
+            var w = GraphicsDevice.Viewport.Width;
+            _prestigeButton = new UiButton(new Rectangle(pad, 20, w - pad * 2, 60), "", () => {
+                _state.DoPrestige();
+                _needsLayout = true; // Rebuild list (it's empty now!)
+            });
         }
 
         private void LayoutUI() {

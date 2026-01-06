@@ -5,19 +5,18 @@ namespace InfGame
 {
     public sealed class SaveData
     {
-        // Changed from double to BigDouble
         public BigDouble Coins { get; set; }
 
+        //Total money earned across this specific run (used for prestige math)
+        public BigDouble LifetimeCoins { get; set; }
+
+        //The permanent currency you keep after reset
+        public BigDouble PrestigePoints { get; set; }
+
         public Dictionary<string, int> GeneratorCounts { get; set; } = new();
-
-        public BigDouble TapValue { get; set; }
-        public BigDouble GeneratorBaseCps { get; set; }
-
-        public BigDouble GeneratorCostBase { get; set; }
-        public double GeneratorCostGrowth { get; set; } // Growth factor (1.15) can stay double
-
         public List<string> UpgradesBought { get; set; } = new();
 
+        public BigDouble TapValue { get; set; }
         public DateTimeOffset LastSavedUtc { get; set; }
     }
 }

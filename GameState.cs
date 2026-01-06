@@ -23,16 +23,49 @@ namespace InfGame
         public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
         public DateTimeOffset LastSavedUtc { get; private set; } = DateTimeOffset.UtcNow;
 
-        public void Tick() {
-            //add exactly one "Tick's worth" of production
-        // Math: (Coins/Sec) * (Seconds/Tick)
-        Coins += CoinsPerSecond * TickDuration;
+        public BigDouble LifetimeCoins { get; private set; }
+        public BigDouble PrestigePoints { get; private set; }
 
-            // FUTURE: This is where you add probability logic
-            // if (Random.NextDouble() < 0.01) FindGem();
+        public double PrestigeBonusPercent => 0.10;
+
+
+        public void Tick() {
+            var income = CoinsPerSecond * TickDuration;
+            Coins += income;
+            LifetimeCoins += income; // <--- Track it!
         }
 
         // --- New Data-Driven Logic ---
+
+        public BigDouble CalculatePrestigeGain() {
+            // Threshold: Don't give points for pocket change
+            if (LifetimeCoins < 1000000) return BigDouble.Zero;
+
+            // Formula: (Lifetime / 1M) ^ (1/3)
+            var baseVal = LifetimeCoins / 1000000.0;
+            var gain = BigDouble.Pow(baseVal, 1.0 / 3.0);
+
+            return BigDouble.Floor(gain);
+        }
+
+        public void DoPrestige() {
+            var gain = CalculatePrestigeGain();
+            if (gain <= 0.001) return; // Safety check
+
+            // 1. Bank the Points
+            PrestigePoints += gain;
+
+            // 2. Reset the Run
+            Coins = BigDouble.Zero;
+            LifetimeCoins = BigDouble.Zero; // Reset run counter
+
+            _generatorCounts.Clear();
+            _purchasedUpgrades.Clear(); // Usually we wipe upgrades too
+
+            // 3. Recalculate Logic
+            RecalcTap();
+            RecalcCps();
+        }
 
         public int GetCount(string id) {
             return _generatorCounts.ContainsKey(id) ? _generatorCounts[id] : 0;
@@ -93,6 +126,8 @@ namespace InfGame
 
         private void RecalcCps() {
             var total = BigDouble.Zero;
+            var prestigeMult = 1.0 + (PrestigePoints.ToDouble() * PrestigeBonusPercent);
+
 
             // 1. Calculate Global Multipliers once
             double globalMult = 1.0;
@@ -118,7 +153,7 @@ namespace InfGame
                 // Base * Count * GenMult * GlobalMult
                 total += def.BaseRevenue * kvp.Value * genMult * globalMult;
             }
-            CoinsPerSecond = total;
+            CoinsPerSecond = total * prestigeMult;
         }
 
         // --- Standard Stuff ---
@@ -152,7 +187,8 @@ namespace InfGame
             Coins = data.Coins;
             LastSavedUtc = data.LastSavedUtc;
             _generatorCounts = data.GeneratorCounts ?? new Dictionary<string, int>();
-
+            LifetimeCoins = data.LifetimeCoins;
+            PrestigePoints = data.PrestigePoints;
             // Load Upgrades
             _purchasedUpgrades.Clear();
             if (data.UpgradesBought != null) {
@@ -167,6 +203,8 @@ namespace InfGame
             return new SaveData {
                 Coins = Coins,
                 LastSavedUtc = DateTimeOffset.UtcNow,
+                LifetimeCoins = LifetimeCoins,
+                PrestigePoints = PrestigePoints,
                 GeneratorCounts = new Dictionary<string, int>(_generatorCounts),
                 UpgradesBought = new List<string>(_purchasedUpgrades) // Convert HashSet to List
             };
