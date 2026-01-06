@@ -91,7 +91,7 @@ namespace InfGame
                 var p = new Point((int)g.Position.X, (int)g.Position.Y);
 
                 if (_tapButton.HitTest(p)) { _state.Tap(); continue; }
-                if (_buyGenButton.HitTest(p)) { _state.TryBuyGenerator(); continue; }
+                if (_buyGenButton.HitTest(p)) { _state.TryBuyGenerator(); Save(); continue; }
             }
         }
 
@@ -133,37 +133,42 @@ namespace InfGame
 
         private void LoadOrCreateSave() {
             if (!File.Exists(_savePath)) {
-                // default state; mark saved time for offline calc later
                 _state.MarkSaved(DateTimeOffset.UtcNow);
-                Save();
+                Save(); // This will create the first valid file
                 return;
             }
 
             try {
                 var json = File.ReadAllText(_savePath);
-                var data = JsonSerializer.Deserialize<SaveData>(json);
+
+                // FIX: Pass _jsonOptions so it uses BigDoubleConverter
+                var data = JsonSerializer.Deserialize<SaveData>(json, _jsonOptions);
 
                 if (data != null) {
                     _state.LoadFrom(data);
                     _state.ApplyOfflineProgress(data.LastSavedUtc, DateTimeOffset.UtcNow);
                 }
             }
-            catch {
-                // If save is corrupted, start fresh (don’t brick launch)
+            catch (Exception ex) {
+                // Debugging tip: Print ex.Message here to see why it failed
+                // For now, if load fails (e.g. old format), we just start fresh
+                System.Diagnostics.Debug.WriteLine($"Load failed: {ex.Message}");
             }
         }
 
         private void Save() {
             try {
-                var json = File.ReadAllText(_savePath);
-                // Pass _jsonOptions here
-                var data = JsonSerializer.Deserialize<SaveData>(json, _jsonOptions);
-                //data = _state.ToSaveData();
-                json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                // 1. Get the data from the State
+                var data = _state.ToSaveData();
+
+                // 2. Serialize it using the Options (so BigDouble looks like { "m": 1, "e": 0 })
+                var json = JsonSerializer.Serialize(data, _jsonOptions);
+
+                // 3. Write to disk
                 File.WriteAllText(_savePath, json);
             }
             catch {
-                // ignore; day 1
+                // Ignore errors during gameplay
             }
         }
 
