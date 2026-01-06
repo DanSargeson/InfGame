@@ -18,7 +18,9 @@ namespace InfGame
         private readonly GameState _state = new();
 
         private UiButton _tapButton;
-        private UiButton _buyGenButton;
+        private UiButton _buyT1;
+        private UiButton _buyT2;
+        private UiButton _buyT3;
 
         private string _savePath;
         private bool _needsLayout = true;
@@ -81,7 +83,7 @@ namespace InfGame
         }
 
         private void HandleTouch() {
-            if (_tapButton == null || _buyGenButton == null)
+            if (_tapButton == null || _buyT1 == null)
                 return;
 
             while (TouchPanel.IsGestureAvailable) {
@@ -91,7 +93,9 @@ namespace InfGame
                 var p = new Point((int)g.Position.X, (int)g.Position.Y);
 
                 if (_tapButton.HitTest(p)) { _state.Tap(); continue; }
-                if (_buyGenButton.HitTest(p)) { _state.TryBuyGenerator(); Save(); continue; }
+                if (_buyT1.HitTest(p)) { _state.TryBuyGenerator("gen_t1"); continue; }
+                if (_buyT2.HitTest(p)) { _state.TryBuyGenerator("gen_t2"); continue; }
+                if (_buyT3.HitTest(p)) { _state.TryBuyGenerator("gen_t3"); continue; }
             }
         }
 
@@ -102,33 +106,65 @@ namespace InfGame
 
             var coinsText = $"Coins: {NumberFormat.Compact(_state.Coins)}";
             var cpsText = $"CPS: {NumberFormat.Compact(_state.CoinsPerSecond, 2)}";
-            var genCost = _state.GetNextGeneratorCost();
-            var genText = $"Generators: {_state.Generators}  (Cost: {NumberFormat.Compact(genCost)})";
+            //var genCost = _state.GetNextGeneratorCost();
+            //var genText = $"Generators: {_state.Generators}  (Cost: {NumberFormat.Compact(genCost)})";
 
             _spriteBatch.DrawString(_font, coinsText, new Vector2(240, 240), Color.White);
-            _spriteBatch.DrawString(_font, cpsText, new Vector2(240, 440), Color.White);
-            _spriteBatch.DrawString(_font, genText, new Vector2(240, 640), Color.White);
+            _spriteBatch.DrawString(_font, cpsText, new Vector2(240, 280), Color.White);
+           // _spriteBatch.DrawString(_font, genText, new Vector2(240, 640), Color.White);
 
             _tapButton.Draw(_spriteBatch, _font, _pixel);
-            _buyGenButton.Draw(_spriteBatch, _font, _pixel);
+            // We need to manually construct the text for each button here (temporary)
+            // Ideally, the Button class would hold a reference to the GeneratorDef later.
+            UpdateButtonText(_buyT1, "gen_t1");
+            UpdateButtonText(_buyT2, "gen_t2");
+            UpdateButtonText(_buyT3, "gen_t3");
+
+            _buyT1.Draw(_spriteBatch, _font, _pixel);
+            _buyT2.Draw(_spriteBatch, _font, _pixel);
+            _buyT3.Draw(_spriteBatch, _font, _pixel);
 
             _spriteBatch.End();
 
             base.Draw(gameTime);
         }
 
+        // Helper to show dynamic cost on the button
+        private void UpdateButtonText(UiButton btn, string id) {
+            var def = GameData.GetGenerator(id);
+            var cost = _state.GetCost(id);
+            var count = _state.GetCount(id);
+
+            // e.g. "Intern (5)\n$150"
+            btn.Text = $"{def.Name} ({count})\n{NumberFormat.Compact(cost)}";
+        }
+
         private void LayoutButtons() {
+           // int w = GraphicsDevice.Viewport.Width;
+            //int h = GraphicsDevice.Viewport.Height;
+
+            //int pad = 200;
+            //int btnH = 120;
+            //int btnW = (w - pad * 3) / 2;
+
+          //  var y = h - pad - btnH;
+
+        //    _tapButton = new UiButton(new Rectangle(pad, y, btnW, btnH), "TAP +1");
             int w = GraphicsDevice.Viewport.Width;
-            int h = GraphicsDevice.Viewport.Height;
+            int pad = 20;
+            int h = 100; // button height
+            int y = 600; // start Y
 
-            int pad = 200;
-            int btnH = 120;
-            int btnW = (w - pad * 3) / 2;
+            _tapButton = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "TAP");
+            y += h + pad;
 
-            var y = h - pad - btnH;
+            _buyT1 = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "");
+            y += h + pad;
 
-            _tapButton = new UiButton(new Rectangle(pad, y, btnW, btnH), "TAP +1");
-            _buyGenButton = new UiButton(new Rectangle(pad * 2 + btnW, y, btnW, btnH), "BUY GEN");
+            _buyT2 = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "");
+            y += h + pad;
+
+            _buyT3 = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "");
         }
 
         private void LoadOrCreateSave() {

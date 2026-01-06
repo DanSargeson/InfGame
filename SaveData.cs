@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace InfGame
 {
@@ -7,8 +8,7 @@ namespace InfGame
         // Changed from double to BigDouble
         public BigDouble Coins { get; set; }
 
-        // Count usually fits in int, but cost/production won't
-        public int Generators { get; set; }
+        public Dictionary<string, int> GeneratorCounts { get; set; } = new();
 
         public BigDouble TapValue { get; set; }
         public BigDouble GeneratorBaseCps { get; set; }
