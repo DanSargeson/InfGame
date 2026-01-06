@@ -104,8 +104,22 @@ namespace InfGame
         #region Comparison Operators
 
         public int CompareTo(BigDouble other) {
-            if (Exponent > other.Exponent) return Mantissa > 0 ? 1 : -1;
-            if (Exponent < other.Exponent) return Mantissa > 0 ? -1 : 1;
+            // 1. Compare Signs first (Quickest check)
+            // 1 > 0 > -1
+            int signA = Math.Sign(Mantissa);
+            int signB = Math.Sign(other.Mantissa);
+
+            if (signA != signB) return signA.CompareTo(signB);
+
+            // 2. If both are Zero, they are equal
+            if (signA == 0) return 0;
+
+            // 3. Same signs (both positive or both negative)
+            // Compare magnitude (Exponent)
+            if (Exponent > other.Exponent) return signA > 0 ? 1 : -1;
+            if (Exponent < other.Exponent) return signA > 0 ? -1 : 1;
+
+            // 4. Same Exponent? Compare Mantissa
             return Mantissa.CompareTo(other.Mantissa);
         }
 
