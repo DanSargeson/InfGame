@@ -184,21 +184,31 @@ namespace InfGame
             int h = GraphicsDevice.Viewport.Height;
             int pad = 20;
 
-            // 1. Header Area
-            int headerHeight = 300;
-            _tapButton = new UiButton(new Rectangle(pad, headerHeight, w - pad * 2, 100), "TAP +1", () => _state.Tap());
+            // --- 1. The Fixed Elements ---
 
-            // 2. List Area
-            // The list starts after the header and takes the rest of the screen
-            _listBounds = new Rectangle(0, headerHeight, w, h - headerHeight);
-
-            // 3. Generate Buttons from Data
-            _genButtons.Clear();
-            int currentY = 0; // Relative to list top
+            // You wanted the TAP button at Y=400
+            int tapY = 400;
             int btnH = 100;
 
+            _tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnH), "TAP +1", () => _state.Tap());
+
+            // --- 2. The List Area ---
+
+            // The list should start AFTER the tap button (+ padding)
+            int listStartY = tapY + btnH + pad;
+
+            // The Scissor Rect defines the "Window" we can see through.
+            // It starts below the TAP button and goes to the bottom of the screen.
+            _listBounds = new Rectangle(0, listStartY, w, h - listStartY);
+
+            // --- 3. Generate Content ---
+            _genButtons.Clear();
+
+            // IMPORTANT: The buttons must start at the same Y as the ListBounds
+            int currentY = listStartY;
+
             foreach (var def in GameData.Generators) {
-                string id = def.Id; // Closure capture
+                string id = def.Id;
 
                 var btnRect = new Rectangle(pad, currentY, w - pad * 2, btnH);
                 var btn = new UiButton(btnRect, def.Name, () => _state.TryBuyGenerator(id));
@@ -207,8 +217,9 @@ namespace InfGame
                 currentY += btnH + pad;
             }
 
-            // Calculate max scroll (Total Content Height - Visible Window)
-            _maxScroll = Math.Max(0, currentY - _listBounds.Height + pad);
+            // Calculate max scroll range
+            // If buttons end at 1200 and screen ends at 800, we need 400 scroll.
+            _maxScroll = Math.Max(0, currentY - h + pad);
         }
 
         // --- Save/Load Boilerplate (Unchanged) ---
