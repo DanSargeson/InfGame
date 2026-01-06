@@ -36,8 +36,8 @@ namespace InfGame
                   new GeneratorDef {
                     Id = "gen_t5",
                     Name = "5",
-                    BaseCost = new BigDouble(1100),
-                    BaseRevenue = new BigDouble(32)
+                    BaseCost = new BigDouble(1),
+                    BaseRevenue = new BigDouble(1000000)
                 },
                    
                 // Add "Progression Curve" here

@@ -109,6 +109,15 @@ namespace InfGame
             }
 
 
+
+            // 3. Handle Input (Input is usually per-frame, not per-tick)
+            if (_needsLayout) {
+                LayoutUI();
+                _needsLayout = false;
+            }
+
+            HandleInput();
+
             // Update Prestige Button
             var potentialGain = _state.CalculatePrestigeGain();
 
@@ -121,16 +130,10 @@ namespace InfGame
                 _prestigeButton.IsActive = false;
             }
 
-            // 3. Handle Input (Input is usually per-frame, not per-tick)
-            if (_needsLayout) {
-                LayoutUI();
-                _needsLayout = false;
-            }
-
-            HandleInput();
+            _prestigeButton.Update(0);
 
             // Update visual timers (animations) using Real Time, not Tick Time
-           // _tapButton.Update(dt);
+            // _tapButton.Update(dt);
             UpdateGeneratorButtons(0);
 
 
@@ -188,6 +191,12 @@ namespace InfGame
                     if (_toggleButton.HitTest(p)) {
                         _toggleButton.TriggerFlash();
                         _toggleButton.OnClick?.Invoke();
+                        uiHit = true;
+                    }
+
+                    else if(_prestigeButton.HitTest(p)) {
+                        _prestigeButton.TriggerFlash();
+                        _prestigeButton.OnClick?.Invoke();
                         uiHit = true;
                     }
 
@@ -263,10 +272,6 @@ namespace InfGame
             //_tapButton.Draw(_spriteBatch, _font, _pixel);
             var pad = 50;
             var w = GraphicsDevice.Viewport.Width;
-            _prestigeButton = new UiButton(new Rectangle(pad, 20, w - pad * 2, 60), "", () => {
-                _state.DoPrestige();
-                _needsLayout = true; // Rebuild list (it's empty now!)
-            });
         }
 
         private void LayoutUI() {
@@ -281,6 +286,10 @@ namespace InfGame
 
             // Tap Button
             //_tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
+            _prestigeButton = new UiButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
+                _state.DoPrestige();
+                _needsLayout = true; // Rebuild list (it's empty now!)
+            });
 
             // Toggle Button (New)
             _toggleButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "VIEW: GENERATORS", () => {

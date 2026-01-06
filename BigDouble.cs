@@ -132,6 +132,23 @@ namespace InfGame
         public static bool operator ==(BigDouble a, BigDouble b) => a.Equals(b);
         public static bool operator !=(BigDouble a, BigDouble b) => !a.Equals(b);
 
+        // Paste inside BigDouble.cs, inside the #region Comparison Operators
+
+        public static bool operator >(BigDouble a, double b) => a.CompareTo(new BigDouble(b)) > 0;
+        public static bool operator <(BigDouble a, double b) => a.CompareTo(new BigDouble(b)) < 0;
+        public static bool operator >=(BigDouble a, double b) => a.CompareTo(new BigDouble(b)) >= 0;
+        public static bool operator <=(BigDouble a, double b) => a.CompareTo(new BigDouble(b)) <= 0;
+        public static bool operator ==(BigDouble a, double b) => a.Equals(new BigDouble(b));
+        public static bool operator !=(BigDouble a, double b) => !a.Equals(new BigDouble(b));
+
+        // Optional: Compare (double, BigDouble) for cases like "if (1000 > coins)"
+        public static bool operator >(double a, BigDouble b) => new BigDouble(a).CompareTo(b) > 0;
+        public static bool operator <(double a, BigDouble b) => new BigDouble(a).CompareTo(b) < 0;
+        public static bool operator >=(double a, BigDouble b) => new BigDouble(a).CompareTo(b) >= 0;
+        public static bool operator <=(double a, BigDouble b) => new BigDouble(a).CompareTo(b) <= 0;
+        public static bool operator ==(double a, BigDouble b) => new BigDouble(a).Equals(b);
+        public static bool operator !=(double a, BigDouble b) => !new BigDouble(a).Equals(b);
+
         public static BigDouble operator -(BigDouble a) => new BigDouble(-a.Mantissa, a.Exponent);
 
         public override bool Equals(object obj) => obj is BigDouble bd && Equals(bd);
