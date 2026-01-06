@@ -24,8 +24,10 @@ namespace InfGame
         private ViewMode _viewMode = ViewMode.Generators;
         private UiButton _toggleButton;
 
-        private UiButton _tapButton;
+     //   private UiButton _tapButton;
         private List<UiButton> _genButtons = new();
+
+        private List<FloatingText> _particles = new();
 
         //The Time Accumulator
         private double _accumulator = 0.0;
@@ -74,6 +76,15 @@ namespace InfGame
             LoadOrCreateSave();
         }
 
+        private void SpawnFloatingText(Vector2 pos, string text, Color color) {
+            // Randomize X slightly (-20 to +20)
+            var rnd = new Random();
+            float xOffset = rnd.Next(-20, 21);
+
+            var finalPos = new Vector2(pos.X + xOffset, pos.Y);
+            _particles.Add(new FloatingText(finalPos, text, color));
+        }
+
         protected override void Update(GameTime gameTime) {
             var dt = gameTime.ElapsedGameTime.TotalSeconds;
             // 1. Add real time to the "Bank"
@@ -104,8 +115,18 @@ namespace InfGame
             HandleInput();
 
             // Update visual timers (animations) using Real Time, not Tick Time
-            _tapButton.Update(dt);
+           // _tapButton.Update(dt);
             UpdateGeneratorButtons(0);
+
+
+            // Update Particles
+            
+            for (int i = _particles.Count - 1; i >= 0; i--) {
+                _particles[i].Update(dt);
+                if (!_particles[i].IsActive) {
+                    _particles.RemoveAt(i);
+                }
+            }
 
             //_state.Tick();
             base.Update(gameTime);
@@ -144,38 +165,42 @@ namespace InfGame
         private void HandleInput() {
             while (TouchPanel.IsGestureAvailable) {
                 var g = TouchPanel.ReadGesture();
-
                 if (g.GestureType == GestureType.Tap) {
                     var p = new Point((int)g.Position.X, (int)g.Position.Y);
+                    bool uiHit = false;
 
-                    // 1. Check Header Buttons (Tap)
-                    if (_tapButton.HitTest(p)) {
-                        _tapButton.TriggerFlash();
-                        _tapButton.OnClick?.Invoke();
-                        continue;
+                    // 1. Check Toggle Button
+                    if (_toggleButton.HitTest(p)) {
+                        _toggleButton.TriggerFlash();
+                        _toggleButton.OnClick?.Invoke();
+                        uiHit = true;
                     }
 
-                    if (_toggleButton.HitTest(p)) { _toggleButton.TriggerFlash(); _toggleButton.OnClick?.Invoke(); continue; }
-                    // 2. Check Scroll List
-                    // Only click if inside the list view
-                    if (_listBounds.Contains(p)) {
-                        // Offset the touch to match the scrolled buttons
+                    // 2. Check Scroll List (Only if inside the list area)
+                    else if (_listBounds.Contains(p)) {
                         var scrollPoint = new Point(p.X, p.Y + (int)_scrollY);
 
                         foreach (var btn in _genButtons) {
                             if (btn.HitTest(scrollPoint)) {
                                 btn.TriggerFlash();
                                 btn.OnClick?.Invoke();
-                                break;
+                                uiHit = true;
+                                break; // Stop checking other buttons
                             }
                         }
                     }
+
+                    // 3. The "Tap Anywhere" Fallback
+                    // If we didn't hit any UI, it's a gameplay tap!
+                    if (!uiHit) {
+                        _state.Tap();
+                        // Spawn text exactly where the finger is
+                        SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
+                    }
                 }
                 else if (g.GestureType == GestureType.VerticalDrag) {
-                    // Scroll Logic
+                    // ... (Keep existing scroll logic) ...
                     _scrollY -= g.Delta.Y;
-
-                    // Clamp Scroll
                     if (_scrollY < 0) _scrollY = 0;
                     if (_scrollY > _maxScroll) _scrollY = _maxScroll;
                 }
@@ -188,6 +213,10 @@ namespace InfGame
             // --- 1. Draw Header (Static) ---
             _spriteBatch.Begin();
             DrawHeader();
+            foreach (var p in _particles) {
+                p.Draw(_spriteBatch, _font);
+            }
+
             _spriteBatch.End();
 
             // --- 2. Draw List (Scissor Clipped) ---
@@ -216,7 +245,7 @@ namespace InfGame
             _spriteBatch.DrawString(_font, coinsText, new Vector2(50, 200), Color.White);
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
             _toggleButton.Draw(_spriteBatch, _font, _pixel);
-            _tapButton.Draw(_spriteBatch, _font, _pixel);
+            //_tapButton.Draw(_spriteBatch, _font, _pixel);
         }
 
         private void LayoutUI() {
@@ -225,15 +254,15 @@ namespace InfGame
             int pad = 20;
 
             // 1. Header Area
-            int headerHeight = 350; // Increased slightly for Toggle Button
-            int tapY = 700;
+           // int headerHeight = 350; // Increased slightly for Toggle Button
+            int tapY = 800;
             int btnHeight = 80;
 
             // Tap Button
-            _tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
+            //_tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
 
             // Toggle Button (New)
-            _toggleButton = new UiButton(new Rectangle(pad, headerHeight + pad, w - pad * 2, 60), "VIEW: GENERATORS", () => {
+            _toggleButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "VIEW: GENERATORS", () => {
                 // Swap Mode
                 _viewMode = (_viewMode == ViewMode.Generators) ? ViewMode.Upgrades : ViewMode.Generators;
                 _needsLayout = true; // Rebuild list
