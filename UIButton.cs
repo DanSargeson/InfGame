@@ -11,7 +11,7 @@ namespace InfGame
         public string Text;
 
         public Action OnClick;
-        public bool IsActive = false; // Can we afford it?
+        public bool IsActive = true; // Can we afford it?
 
         private float _flashTimer = 0f; // For the visual "pop"
 
