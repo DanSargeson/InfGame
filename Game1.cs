@@ -42,8 +42,6 @@ namespace InfGame
         protected override void Initialize() {
             base.Initialize();
 
-            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _savePath = Path.Combine(dir, "infgame_save.json");
         }
 
         protected override void LoadContent() {
@@ -56,6 +54,8 @@ namespace InfGame
 
             _needsLayout = true;
 
+            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            _savePath = Path.Combine(dir, "infgame_save.json");
             LoadOrCreateSave();
         }
 

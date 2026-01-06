@@ -118,6 +118,8 @@ namespace InfGame
         public static bool operator ==(BigDouble a, BigDouble b) => a.Equals(b);
         public static bool operator !=(BigDouble a, BigDouble b) => !a.Equals(b);
 
+        public static BigDouble operator -(BigDouble a) => new BigDouble(-a.Mantissa, a.Exponent);
+
         public override bool Equals(object obj) => obj is BigDouble bd && Equals(bd);
         public override int GetHashCode() => HashCode.Combine(Mantissa, Exponent);
 
@@ -152,7 +154,7 @@ namespace InfGame
 
         public static BigDouble Floor(BigDouble value) {
             if (value.Exponent > 15) return value; // Already an integer effectively
-            if (value.Exponent < 0) return Math.Floor(value.ToDouble()); // Less than 1
+            if (value.Exponent < 0) return new BigDouble(Math.Floor(value.ToDouble())); // Less than 1
 
             // Mixed case requires careful shifting, but usually we just want visual integer
             // For game logic, we rarely floor massive numbers, but for safety:

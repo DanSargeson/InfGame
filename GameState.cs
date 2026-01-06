@@ -8,9 +8,9 @@ namespace InfGame
         public BigDouble CoinsPerSecond { get; private set; }
 
         public int Generators { get; private set; }
-        public double GeneratorBaseCps { get; private set; } = 0.2;
+        public BigDouble GeneratorBaseCps { get; private set; } = new BigDouble(0.2);
 
-        public double TapValue { get; private set; } = 1.0;
+        public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
 
         public BigDouble GeneratorCostBase { get; private set; } = new BigDouble(15.0);
         public double GeneratorCostGrowth { get; private set; } = 1.15;
@@ -78,7 +78,7 @@ namespace InfGame
         }
 
         private void RecalcCps() {
-            CoinsPerSecond = Generators * GeneratorBaseCps;
+            CoinsPerSecond = new BigDouble(Generators * GeneratorBaseCps.ToDouble());
         }
     }
 }
