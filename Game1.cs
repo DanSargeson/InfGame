@@ -115,32 +115,28 @@ namespace InfGame
             foreach (var btn in _genButtons) {
                 btn.Update(dt);
 
-                // Logic differs based on view
-                if (_viewMode == ViewMode.Generators) {
-                    // ... Existing generator logic ...
-                    int index = _genButtons.IndexOf(btn);
-                    if (index >= 0 && index < GameData.Generators.Count) {
-                        var def = GameData.Generators[index];
-                        var cost = _state.GetCost(def.Id);
-                        var count = _state.GetCount(def.Id);
-                        btn.Text = $"{def.Name} ({count})\n{NumberFormat.Compact(cost)}";
-                        btn.IsActive = _state.Coins >= cost;
-                    }
+                // CASE 1: It is a Generator
+                if (btn.Tag is GeneratorDef genDef) {
+                    var cost = _state.GetCost(genDef.Id);
+                    var count = _state.GetCount(genDef.Id);
+
+                    btn.Text = $"{genDef.Name} ({count})\n{NumberFormat.Compact(cost)}";
+
+                    // Active if we can afford it
+                    btn.IsActive = _state.Coins >= cost;
                 }
-                else {
-                    // Upgrade Logic
-                    // Note: Since we filter out bought upgrades, the index here won't match GameData.Upgrades index directly.
-                    // Ideally, store the Def on the button. For MVP, we'll iterate or find.
-                    // Simplest MVP Fix: Store ID in button Tag or re-find.
-                    // Let's rely on finding by Text Name (Hack for MVP) or better:
-                    // Modify UiButton to hold an "Object Data" or "String ID".
+                // CASE 2: It is an Upgrade
+                else if (btn.Tag is UpgradeDef upgDef) {
+                    // Upgrades have fixed costs (usually)
+                    btn.Text = $"{upgDef.Name}\n{NumberFormat.Compact(upgDef.Cost)}";
 
-                    // For now, let's just update IsActive based on cost by parsing text? No, too messy.
-                    // Correct way: When creating the button, capture the Def in a closure for Update too? 
-                    // Actually, just pass a custom Update Action to the button!
+                    // Active if afford AND we don't own it yet 
+                    // (though usually layout hides owned ones, this is a safety check)
+                    bool isOwned = _state.HasUpgrade(upgDef.Id);
+                    btn.IsActive = !isOwned && _state.Coins >= upgDef.Cost;
 
-                    // ALTERNATIVE: Just loop GameData.Upgrades and match names? 
-                    // Let's assume you add `public object Tag;` to UiButton.cs for safety.
+                    // Optional: If owned, maybe change text to "BOUGHT"
+                    if (isOwned) btn.Text = "BOUGHT";
                 }
             }
         }
@@ -230,11 +226,11 @@ namespace InfGame
 
             // 1. Header Area
             int headerHeight = 350; // Increased slightly for Toggle Button
-            int tapY = 500;
+            int tapY = 700;
             int btnHeight = 80;
 
             // Tap Button
-            _tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP +1", () => _state.Tap());
+            _tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
 
             // Toggle Button (New)
             _toggleButton = new UiButton(new Rectangle(pad, headerHeight + pad, w - pad * 2, 60), "VIEW: GENERATORS", () => {
