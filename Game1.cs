@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Xna.Framework;
@@ -11,211 +12,233 @@ namespace InfGame
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
-
         private SpriteFont _font;
         private Texture2D _pixel;
 
         private readonly GameState _state = new();
 
+        // UI Components
         private UiButton _tapButton;
-        private UiButton _buyT1;
-        private UiButton _buyT2;
-        private UiButton _buyT3;
+        private List<UiButton> _genButtons = new();
 
+        // Scroll State
+        private float _scrollY = 0;
+        private float _maxScroll = 0;
+        private Rectangle _listBounds; // The visible window for the list
+
+        // Layout State
         private string _savePath;
         private bool _needsLayout = true;
-
         private readonly JsonSerializerOptions _jsonOptions;
 
+        // Clipping State (New)
+        private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
         public Game1() {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
-            IsMouseVisible = false;
+            IsMouseVisible = true;
 
-            TouchPanel.EnabledGestures = GestureType.Tap;
+            // Enable Tap AND VerticalDrag for scrolling
+            TouchPanel.EnabledGestures = GestureType.Tap | GestureType.VerticalDrag;
 
-            _jsonOptions = new JsonSerializerOptions {
-                WriteIndented = true
-            };
+            _jsonOptions = new JsonSerializerOptions { WriteIndented = true };
             _jsonOptions.Converters.Add(new BigDoubleConverter());
         }
 
         protected override void Initialize() {
             base.Initialize();
+            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            _savePath = Path.Combine(dir, "infgame_save.json");
 
+            // Uncomment once to reset if you have corrupted saves
+            // if (File.Exists(_savePath)) File.Delete(_savePath); 
         }
 
         protected override void LoadContent() {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
-
             _font = Content.Load<SpriteFont>("UIFont");
-
             _pixel = new Texture2D(GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
 
             _needsLayout = true;
-
-            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _savePath = Path.Combine(dir, "infgame_save.json");
             LoadOrCreateSave();
         }
-
-        protected override void OnActivated(object sender, EventArgs args) {
-            base.OnActivated(sender, args);
-            _needsLayout = true; 
-        }
-
 
         protected override void Update(GameTime gameTime) {
             var dt = gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (_needsLayout && GraphicsDevice != null) {
-                LayoutButtons();
+            if (_needsLayout) {
+                LayoutUI();
                 _needsLayout = false;
             }
 
-            HandleTouch();
+            HandleInput();
+
+            // Update Logic for Flash Timers & Text
+            _tapButton.Update(dt);
+            UpdateGeneratorButtons(dt);
 
             _state.Tick(dt);
-
             base.Update(gameTime);
         }
 
-        private void HandleTouch() {
-            if (_tapButton == null || _buyT1 == null)
-                return;
+        private void UpdateGeneratorButtons(double dt) {
+            foreach (var btn in _genButtons) {
+                btn.Update(dt);
 
+                // Find the definition matching this button
+                // (In a bigger game, store 'Def' on the button itself)
+                int index = _genButtons.IndexOf(btn);
+                if (index < 0 || index >= GameData.Generators.Count) continue;
+
+                var def = GameData.Generators[index];
+                var cost = _state.GetCost(def.Id);
+                var count = _state.GetCount(def.Id);
+
+                // Dynamic Text & State
+                btn.Text = $"{def.Name} ({count})\n{NumberFormat.Compact(cost)}";
+                btn.IsActive = _state.Coins >= cost;
+            }
+        }
+
+        private void HandleInput() {
             while (TouchPanel.IsGestureAvailable) {
                 var g = TouchPanel.ReadGesture();
-                if (g.GestureType != GestureType.Tap) continue;
 
-                var p = new Point((int)g.Position.X, (int)g.Position.Y);
+                if (g.GestureType == GestureType.Tap) {
+                    var p = new Point((int)g.Position.X, (int)g.Position.Y);
 
-                if (_tapButton.HitTest(p)) { _state.Tap(); continue; }
-                if (_buyT1.HitTest(p)) { _state.TryBuyGenerator("gen_t1"); continue; }
-                if (_buyT2.HitTest(p)) { _state.TryBuyGenerator("gen_t2"); continue; }
-                if (_buyT3.HitTest(p)) { _state.TryBuyGenerator("gen_t3"); continue; }
+                    // 1. Check Header Buttons (Tap)
+                    if (_tapButton.HitTest(p)) {
+                        _tapButton.TriggerFlash();
+                        _tapButton.OnClick?.Invoke();
+                        continue;
+                    }
+
+                    // 2. Check Scroll List
+                    // Only click if inside the list view
+                    if (_listBounds.Contains(p)) {
+                        // Offset the touch to match the scrolled buttons
+                        var scrollPoint = new Point(p.X, p.Y + (int)_scrollY);
+
+                        foreach (var btn in _genButtons) {
+                            if (btn.HitTest(scrollPoint)) {
+                                btn.TriggerFlash();
+                                btn.OnClick?.Invoke();
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if (g.GestureType == GestureType.VerticalDrag) {
+                    // Scroll Logic
+                    _scrollY -= g.Delta.Y;
+
+                    // Clamp Scroll
+                    if (_scrollY < 0) _scrollY = 0;
+                    if (_scrollY > _maxScroll) _scrollY = _maxScroll;
+                }
             }
         }
 
         protected override void Draw(GameTime gameTime) {
             GraphicsDevice.Clear(Color.Black);
 
+            // --- 1. Draw Header (Static) ---
             _spriteBatch.Begin();
+            DrawHeader();
+            _spriteBatch.End();
 
-            var coinsText = $"Coins: {NumberFormat.Compact(_state.Coins)}";
-            var cpsText = $"CPS: {NumberFormat.Compact(_state.CoinsPerSecond, 2)}";
-            //var genCost = _state.GetNextGeneratorCost();
-            //var genText = $"Generators: {_state.Generators}  (Cost: {NumberFormat.Compact(genCost)})";
+            // --- 2. Draw List (Scissor Clipped) ---
+            // This ensures buttons don't draw over the header when scrolling
+            _spriteBatch.Begin(rasterizerState: _scissorState);
 
-            _spriteBatch.DrawString(_font, coinsText, new Vector2(240, 240), Color.White);
-            _spriteBatch.DrawString(_font, cpsText, new Vector2(240, 280), Color.White);
-           // _spriteBatch.DrawString(_font, genText, new Vector2(240, 640), Color.White);
+            GraphicsDevice.ScissorRectangle = _listBounds;
 
-            _tapButton.Draw(_spriteBatch, _font, _pixel);
-            // We need to manually construct the text for each button here (temporary)
-            // Ideally, the Button class would hold a reference to the GeneratorDef later.
-            UpdateButtonText(_buyT1, "gen_t1");
-            UpdateButtonText(_buyT2, "gen_t2");
-            UpdateButtonText(_buyT3, "gen_t3");
+            foreach (var btn in _genButtons) {
+                // Optimization: Don't draw if off-screen
+                if (btn.Bounds.Bottom - _scrollY < _listBounds.Top) continue;
+                if (btn.Bounds.Top - _scrollY > _listBounds.Bottom) continue;
 
-            _buyT1.Draw(_spriteBatch, _font, _pixel);
-            _buyT2.Draw(_spriteBatch, _font, _pixel);
-            _buyT3.Draw(_spriteBatch, _font, _pixel);
+                btn.Draw(_spriteBatch, _font, _pixel, (int)_scrollY);
+            }
 
             _spriteBatch.End();
 
             base.Draw(gameTime);
         }
 
-        // Helper to show dynamic cost on the button
-        private void UpdateButtonText(UiButton btn, string id) {
-            var def = GameData.GetGenerator(id);
-            var cost = _state.GetCost(id);
-            var count = _state.GetCount(id);
+        private void DrawHeader() {
+            var coinsText = $"Coins: {NumberFormat.Compact(_state.Coins)}";
+            var cpsText = $"CPS: {NumberFormat.Compact(_state.CoinsPerSecond, 2)}";
 
-            // e.g. "Intern (5)\n$150"
-            btn.Text = $"{def.Name} ({count})\n{NumberFormat.Compact(cost)}";
+            _spriteBatch.DrawString(_font, coinsText, new Vector2(50, 200), Color.White);
+            _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
+
+            _tapButton.Draw(_spriteBatch, _font, _pixel);
         }
 
-        private void LayoutButtons() {
-           // int w = GraphicsDevice.Viewport.Width;
-            //int h = GraphicsDevice.Viewport.Height;
-
-            //int pad = 200;
-            //int btnH = 120;
-            //int btnW = (w - pad * 3) / 2;
-
-          //  var y = h - pad - btnH;
-
-        //    _tapButton = new UiButton(new Rectangle(pad, y, btnW, btnH), "TAP +1");
+        private void LayoutUI() {
             int w = GraphicsDevice.Viewport.Width;
+            int h = GraphicsDevice.Viewport.Height;
             int pad = 20;
-            int h = 100; // button height
-            int y = 600; // start Y
 
-            _tapButton = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "TAP");
-            y += h + pad;
+            // 1. Header Area
+            int headerHeight = 300;
+            _tapButton = new UiButton(new Rectangle(pad, headerHeight, w - pad * 2, 100), "TAP +1", () => _state.Tap());
 
-            _buyT1 = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "");
-            y += h + pad;
+            // 2. List Area
+            // The list starts after the header and takes the rest of the screen
+            _listBounds = new Rectangle(0, headerHeight, w, h - headerHeight);
 
-            _buyT2 = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "");
-            y += h + pad;
+            // 3. Generate Buttons from Data
+            _genButtons.Clear();
+            int currentY = 0; // Relative to list top
+            int btnH = 100;
 
-            _buyT3 = new UiButton(new Rectangle(pad, y, w - pad * 2, h), "");
+            foreach (var def in GameData.Generators) {
+                string id = def.Id; // Closure capture
+
+                var btnRect = new Rectangle(pad, currentY, w - pad * 2, btnH);
+                var btn = new UiButton(btnRect, def.Name, () => _state.TryBuyGenerator(id));
+
+                _genButtons.Add(btn);
+                currentY += btnH + pad;
+            }
+
+            // Calculate max scroll (Total Content Height - Visible Window)
+            _maxScroll = Math.Max(0, currentY - _listBounds.Height + pad);
         }
 
+        // --- Save/Load Boilerplate (Unchanged) ---
         private void LoadOrCreateSave() {
             if (!File.Exists(_savePath)) {
                 _state.MarkSaved(DateTimeOffset.UtcNow);
-                Save(); // This will create the first valid file
+                Save();
                 return;
             }
-
             try {
                 var json = File.ReadAllText(_savePath);
-
-                // FIX: Pass _jsonOptions so it uses BigDoubleConverter
                 var data = JsonSerializer.Deserialize<SaveData>(json, _jsonOptions);
-
                 if (data != null) {
                     _state.LoadFrom(data);
                     _state.ApplyOfflineProgress(data.LastSavedUtc, DateTimeOffset.UtcNow);
                 }
             }
-            catch (Exception ex) {
-                // Debugging tip: Print ex.Message here to see why it failed
-                // For now, if load fails (e.g. old format), we just start fresh
-                System.Diagnostics.Debug.WriteLine($"Load failed: {ex.Message}");
-            }
+            catch { }
         }
 
         private void Save() {
             try {
-                // 1. Get the data from the State
                 var data = _state.ToSaveData();
-
-                // 2. Serialize it using the Options (so BigDouble looks like { "m": 1, "e": 0 })
                 var json = JsonSerializer.Serialize(data, _jsonOptions);
-
-                // 3. Write to disk
                 File.WriteAllText(_savePath, json);
             }
-            catch {
-                // Ignore errors during gameplay
-            }
+            catch { }
         }
 
-        protected override void OnDeactivated(object sender, EventArgs args) {
-            Save();
-            base.OnDeactivated(sender, args);
-        }
-
-        protected override void OnExiting(object sender, Microsoft.Xna.Framework.ExitingEventArgs args) {
-            Save();
-            base.OnExiting(sender, args);
-        }
+        protected override void OnDeactivated(object sender, EventArgs args) { Save(); base.OnDeactivated(sender, args); }
+        protected override void OnExiting(object sender, Microsoft.Xna.Framework.ExitingEventArgs args) { Save(); base.OnExiting(sender, args); }
     }
 }
