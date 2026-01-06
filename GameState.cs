@@ -15,9 +15,11 @@ namespace InfGame
         public BigDouble Coins { get; private set; }
         public BigDouble CoinsPerSecond { get; private set; }
 
+
         // Inventory: Key = Generator ID, Value = Count owned
         private Dictionary<string, int> _generatorCounts = new();
 
+        private HashSet<string> _purchasedUpgrades = new();
         public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
         public DateTimeOffset LastSavedUtc { get; private set; } = DateTimeOffset.UtcNow;
 
@@ -58,15 +60,63 @@ namespace InfGame
             return true;
         }
 
+
+        public bool HasUpgrade(string id) => _purchasedUpgrades.Contains(id);
+
+        public bool TryBuyUpgrade(string id) {
+            if (HasUpgrade(id)) return false; // Already owned
+
+            var def = GameData.GetUpgrade(id);
+            if (def == null) return false;
+
+            if (Coins < def.Cost) return false;
+
+            Coins -= def.Cost;
+            _purchasedUpgrades.Add(id);
+
+            // If it was a tap upgrade, recalc tap immediately
+            if (def.Type == UpgradeType.TapMultiplier) RecalcTap();
+            else RecalcCps();
+
+            return true;
+        }
+
+        private void RecalcTap() {
+            double mult = 1.0;
+            foreach (var id in _purchasedUpgrades) {
+                var def = GameData.GetUpgrade(id);
+                if (def.Type == UpgradeType.TapMultiplier) mult *= def.Multiplier;
+            }
+            TapValue = new BigDouble(1.0) * mult;
+        }
+
+
         private void RecalcCps() {
             var total = BigDouble.Zero;
 
-            // Loop through what we own and sum up the revenue
+            // 1. Calculate Global Multipliers once
+            double globalMult = 1.0;
+            foreach (var id in _purchasedUpgrades) {
+                var def = GameData.GetUpgrade(id);
+                if (def.Type == UpgradeType.GlobalMultiplier) globalMult *= def.Multiplier;
+            }
+
+            // 2. Loop Generators
             foreach (var kvp in _generatorCounts) {
                 var def = GameData.GetGenerator(kvp.Key);
-                if (def != null) {
-                    total += def.BaseRevenue * kvp.Value;
+                if (def == null) continue;
+
+                // 3. Calculate Specific Multiplier for this Generator
+                double genMult = 1.0;
+                foreach (var uid in _purchasedUpgrades) {
+                    var uDef = GameData.GetUpgrade(uid);
+                    if (uDef.Type == UpgradeType.GeneratorMultiplier && uDef.TargetId == def.Id) {
+                        genMult *= uDef.Multiplier;
+                    }
                 }
+
+                // Base * Count * GenMult * GlobalMult
+                total += def.BaseRevenue * kvp.Value * genMult * globalMult;
             }
             CoinsPerSecond = total;
         }
@@ -100,22 +150,25 @@ namespace InfGame
 
         public void LoadFrom(SaveData data) {
             Coins = data.Coins;
-            TapValue = data.TapValue;
             LastSavedUtc = data.LastSavedUtc;
-
-            // Safety: Ensure dictionary exists even if save was empty
             _generatorCounts = data.GeneratorCounts ?? new Dictionary<string, int>();
 
+            // Load Upgrades
+            _purchasedUpgrades.Clear();
+            if (data.UpgradesBought != null) {
+                foreach (var id in data.UpgradesBought) _purchasedUpgrades.Add(id);
+            }
+
+            RecalcTap();
             RecalcCps();
         }
 
         public SaveData ToSaveData() {
             return new SaveData {
                 Coins = Coins,
-                TapValue = TapValue,
                 LastSavedUtc = DateTimeOffset.UtcNow,
-                // Create a copy to prevent reference issues
-                GeneratorCounts = new Dictionary<string, int>(_generatorCounts)
+                GeneratorCounts = new Dictionary<string, int>(_generatorCounts),
+                UpgradesBought = new List<string>(_purchasedUpgrades) // Convert HashSet to List
             };
         }
     }

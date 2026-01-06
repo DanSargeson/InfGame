@@ -16,6 +16,8 @@ namespace InfGame
         public BigDouble GeneratorCostBase { get; set; }
         public double GeneratorCostGrowth { get; set; } // Growth factor (1.15) can stay double
 
+        public List<string> UpgradesBought { get; set; } = new();
+
         public DateTimeOffset LastSavedUtc { get; set; }
     }
 }

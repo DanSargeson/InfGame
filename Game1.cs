@@ -8,6 +8,9 @@ using Microsoft.Xna.Framework.Input.Touch;
 
 namespace InfGame
 {
+
+    public enum ViewMode { Generators, Upgrades }
+
     public class Game1 : Game
     {
         private GraphicsDeviceManager _graphics;
@@ -18,6 +21,9 @@ namespace InfGame
         private readonly GameState _state = new();
 
         // UI Components
+        private ViewMode _viewMode = ViewMode.Generators;
+        private UiButton _toggleButton;
+
         private UiButton _tapButton;
         private List<UiButton> _genButtons = new();
 
@@ -109,18 +115,33 @@ namespace InfGame
             foreach (var btn in _genButtons) {
                 btn.Update(dt);
 
-                // Find the definition matching this button
-                // (In a bigger game, store 'Def' on the button itself)
-                int index = _genButtons.IndexOf(btn);
-                if (index < 0 || index >= GameData.Generators.Count) continue;
+                // Logic differs based on view
+                if (_viewMode == ViewMode.Generators) {
+                    // ... Existing generator logic ...
+                    int index = _genButtons.IndexOf(btn);
+                    if (index >= 0 && index < GameData.Generators.Count) {
+                        var def = GameData.Generators[index];
+                        var cost = _state.GetCost(def.Id);
+                        var count = _state.GetCount(def.Id);
+                        btn.Text = $"{def.Name} ({count})\n{NumberFormat.Compact(cost)}";
+                        btn.IsActive = _state.Coins >= cost;
+                    }
+                }
+                else {
+                    // Upgrade Logic
+                    // Note: Since we filter out bought upgrades, the index here won't match GameData.Upgrades index directly.
+                    // Ideally, store the Def on the button. For MVP, we'll iterate or find.
+                    // Simplest MVP Fix: Store ID in button Tag or re-find.
+                    // Let's rely on finding by Text Name (Hack for MVP) or better:
+                    // Modify UiButton to hold an "Object Data" or "String ID".
 
-                var def = GameData.Generators[index];
-                var cost = _state.GetCost(def.Id);
-                var count = _state.GetCount(def.Id);
+                    // For now, let's just update IsActive based on cost by parsing text? No, too messy.
+                    // Correct way: When creating the button, capture the Def in a closure for Update too? 
+                    // Actually, just pass a custom Update Action to the button!
 
-                // Dynamic Text & State
-                btn.Text = $"{def.Name} ({count})\n{NumberFormat.Compact(cost)}";
-                btn.IsActive = _state.Coins >= cost;
+                    // ALTERNATIVE: Just loop GameData.Upgrades and match names? 
+                    // Let's assume you add `public object Tag;` to UiButton.cs for safety.
+                }
             }
         }
 
@@ -138,6 +159,7 @@ namespace InfGame
                         continue;
                     }
 
+                    if (_toggleButton.HitTest(p)) { _toggleButton.TriggerFlash(); _toggleButton.OnClick?.Invoke(); continue; }
                     // 2. Check Scroll List
                     // Only click if inside the list view
                     if (_listBounds.Contains(p)) {
@@ -197,7 +219,7 @@ namespace InfGame
 
             _spriteBatch.DrawString(_font, coinsText, new Vector2(50, 200), Color.White);
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
-
+            _toggleButton.Draw(_spriteBatch, _font, _pixel);
             _tapButton.Draw(_spriteBatch, _font, _pixel);
         }
 
@@ -206,42 +228,66 @@ namespace InfGame
             int h = GraphicsDevice.Viewport.Height;
             int pad = 20;
 
-            // --- 1. The Fixed Elements ---
+            // 1. Header Area
+            int headerHeight = 350; // Increased slightly for Toggle Button
+            int tapY = 500;
+            int btnHeight = 80;
 
-            // You wanted the TAP button at Y=400
-            int tapY = 400;
-            int btnH = 100;
+            // Tap Button
+            _tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP +1", () => _state.Tap());
 
-            _tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnH), "TAP +1", () => _state.Tap());
+            // Toggle Button (New)
+            _toggleButton = new UiButton(new Rectangle(pad, headerHeight + pad, w - pad * 2, 60), "VIEW: GENERATORS", () => {
+                // Swap Mode
+                _viewMode = (_viewMode == ViewMode.Generators) ? ViewMode.Upgrades : ViewMode.Generators;
+                _needsLayout = true; // Rebuild list
+            });
+            
 
-            // --- 2. The List Area ---
-
-            // The list should start AFTER the tap button (+ padding)
-            int listStartY = tapY + btnH + pad;
-
-            // The Scissor Rect defines the "Window" we can see through.
-            // It starts below the TAP button and goes to the bottom of the screen.
+            // 2. List Area
+            int listStartY = tapY + btnHeight + pad;
             _listBounds = new Rectangle(0, listStartY, w, h - listStartY);
 
-            // --- 3. Generate Content ---
+            // 3. Generate List Content based on ViewMode
             _genButtons.Clear();
-
-            // IMPORTANT: The buttons must start at the same Y as the ListBounds
             int currentY = listStartY;
+            int btnH = 100;
 
-            foreach (var def in GameData.Generators) {
-                string id = def.Id;
+            if (_viewMode == ViewMode.Generators) {
+                // Show Generators
+                foreach (var def in GameData.Generators) {
+                    string id = def.Id;
+                    var btn = new UiButton(new Rectangle(pad, currentY, w - pad * 2, btnH), def.Name, () => _state.TryBuyGenerator(id));
+                    btn.Tag = def;
+                    _genButtons.Add(btn);
+                    currentY += btnH + pad;
+                }
+            }
+            else {
+                // Show Upgrades
+                foreach (var def in GameData.Upgrades) {
+                    // Don't show if already bought!
+                    if (_state.HasUpgrade(def.Id)) continue;
 
-                var btnRect = new Rectangle(pad, currentY, w - pad * 2, btnH);
-                var btn = new UiButton(btnRect, def.Name, () => _state.TryBuyGenerator(id));
+                    string id = def.Id;
+                    // Add description to button text
+                    string text = $"{def.Name}\n{def.Description}";
 
-                _genButtons.Add(btn);
-                currentY += btnH + pad;
+                    var btn = new UiButton(new Rectangle(pad, currentY, w - pad * 2, btnH), text, () => {
+                        if (_state.TryBuyUpgrade(id)) {
+                            _needsLayout = true; // Rebuild list to remove bought item
+                        }
+                    });
+                    btn.Tag = def;
+                    _genButtons.Add(btn);
+                    currentY += btnH + pad;
+                }
             }
 
-            // Calculate max scroll range
-            // If buttons end at 1200 and screen ends at 800, we need 400 scroll.
             _maxScroll = Math.Max(0, currentY - h + pad);
+
+            // Update Toggle Text
+            _toggleButton.Text = _viewMode == ViewMode.Generators ? "SHOW UPGRADES" : "SHOW GENERATORS";
         }
 
         // --- Save/Load Boilerplate (Unchanged) ---

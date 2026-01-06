@@ -5,6 +5,7 @@ namespace InfGame
     public static class GameData
     {
         public static List<GeneratorDef> Generators { get; private set; }
+        public static List<UpgradeDef> Upgrades { get; private set; }
 
         static GameData() {
             Generators = new List<GeneratorDef> {
@@ -41,8 +42,38 @@ namespace InfGame
                    
                 // Add "Progression Curve" here
             };
+
+            Upgrades = new List<UpgradeDef> {
+                new UpgradeDef {
+                    Id = "upg_tap_x2",
+                    Name = "Tap x2",
+                    Description = "Double your tap power.",
+                    Cost = new BigDouble(100),
+                    Type = UpgradeType.TapMultiplier,
+                    Multiplier = 2.0
+                },
+                new UpgradeDef {
+                    Id = "upg_gen_t1_x2",
+                    Name = "First x2",
+                    Description = "Double the revenue of First generators.",
+                    Cost = new BigDouble(500),
+                    Type = UpgradeType.GeneratorMultiplier,
+                    TargetId = "gen_t1",
+                    Multiplier = 2.0
+                },
+                new UpgradeDef {
+                    Id = "upg_global_x2",
+                    Name = "Global x2",
+                    Description = "Double all generator revenue.",
+                    Cost = new BigDouble(1000),
+                    Type = UpgradeType.GlobalMultiplier,
+                    Multiplier = 2.0
+                },
+                // Add more upgrades here
+            };
         }
 
         public static GeneratorDef GetGenerator(string id) => Generators.Find(g => g.Id == id);
+        public static UpgradeDef GetUpgrade(string id) => Upgrades.Find(u => u.Id == id);
     }
 }
