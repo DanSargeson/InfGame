@@ -23,6 +23,8 @@ namespace InfGame
         private string _savePath;
         private bool _needsLayout = true;
 
+        private readonly JsonSerializerOptions _jsonOptions;
+
 
         public Game1() {
             _graphics = new GraphicsDeviceManager(this);
@@ -30,6 +32,11 @@ namespace InfGame
             IsMouseVisible = false;
 
             TouchPanel.EnabledGestures = GestureType.Tap;
+
+            _jsonOptions = new JsonSerializerOptions {
+                WriteIndented = true
+            };
+            _jsonOptions.Converters.Add(new BigDoubleConverter());
         }
 
         protected override void Initialize() {
@@ -148,8 +155,11 @@ namespace InfGame
 
         private void Save() {
             try {
-                var data = _state.ToSaveData();
-                var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                var json = File.ReadAllText(_savePath);
+                // Pass _jsonOptions here
+                var data = JsonSerializer.Deserialize<SaveData>(json, _jsonOptions);
+                //data = _state.ToSaveData();
+                json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_savePath, json);
             }
             catch {

@@ -7,7 +7,7 @@ namespace InfGame
     {
         private static readonly string[] Suffix = { "", "K", "M", "B", "T", "Qa", "Qi" };
 
-        public static string Compact(double value, int decimals = 2) {
+        public static string Compact(BigDouble value, int decimals = 2) {
             if (double.IsNaN(value) || double.IsInfinity(value)) return "0";
             if (value < 0) return "-" + Compact(-value, decimals);
 

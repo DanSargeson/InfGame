@@ -4,15 +4,15 @@ namespace InfGame
 {
     public sealed class GameState
     {
-        public double Coins { get; private set; }
-        public double CoinsPerSecond { get; private set; }
+        public BigDouble Coins { get; private set; }
+        public BigDouble CoinsPerSecond { get; private set; }
 
         public int Generators { get; private set; }
         public double GeneratorBaseCps { get; private set; } = 0.2;
 
         public double TapValue { get; private set; } = 1.0;
 
-        public double GeneratorCostBase { get; private set; } = 15.0;
+        public BigDouble GeneratorCostBase { get; private set; } = new BigDouble(15.0);
         public double GeneratorCostGrowth { get; private set; } = 1.15;
 
         public DateTimeOffset LastSavedUtc { get; private set; } = DateTimeOffset.UtcNow;
@@ -22,7 +22,7 @@ namespace InfGame
             Coins += CoinsPerSecond * dtSeconds;
         }
 
-        public double GetNextGeneratorCost() {
+        public BigDouble GetNextGeneratorCost() {
             // cost = base * growth^Generators
             return GeneratorCostBase * Math.Pow(GeneratorCostGrowth, Generators);
         }
