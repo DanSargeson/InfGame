@@ -10,6 +10,8 @@ namespace InfGame
         public Rectangle Bounds;
         public string Text;
 
+        private float _scale = 1.0f;
+
         public Action OnClick;
         public bool IsActive = true; // Can we afford it?
 
@@ -26,10 +28,16 @@ namespace InfGame
 
         public void TriggerFlash() {
             _flashTimer = 0.15f; // Flash for 150ms
+            _scale = 0.95f;
         }
 
         public void Update(double dt) {
             if (_flashTimer > 0) _flashTimer -= (float)dt;
+
+            if (_scale < 1.0f) {
+                _scale += (float)dt * 2.0f; // Speed of recovery
+                if (_scale > 1.0f) _scale = 1.0f;
+            }
         }
 
         public void Configure(Rectangle bounds, string text, Action onClick) {
@@ -44,8 +52,15 @@ namespace InfGame
         }
 
         public void Draw(SpriteBatch sb, SpriteFont font, Texture2D pixel, int scrollOffset = 0) {
-            // Calculate screen position based on scroll
+            // Calculate center for scaling
             var screenRect = new Rectangle(Bounds.X, Bounds.Y - scrollOffset, Bounds.Width, Bounds.Height);
+            Vector2 center = new Vector2(screenRect.X + screenRect.Width / 2f, screenRect.Y + screenRect.Height / 2f);
+
+            // Draw Background (Scaled)
+            // We use a destination rectangle calculated from the scale
+            int w = (int)(Bounds.Width * _scale);
+            int h = (int)(Bounds.Height * _scale);
+            var drawRect = new Rectangle((int)(center.X - w / 2), (int)(center.Y - h / 2), w, h);
 
             // 1. Determine Color
             Color color;

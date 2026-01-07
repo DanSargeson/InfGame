@@ -330,9 +330,34 @@ namespace InfGame
 
         public void ApplyOfflineProgress(DateTimeOffset lastSavedUtc, DateTimeOffset nowUtc, double maxOfflineSeconds = 28800) {
             var seconds = (nowUtc - lastSavedUtc).TotalSeconds;
-            if (seconds > 0) {
-                if (seconds > maxOfflineSeconds) seconds = maxOfflineSeconds;
-                Coins += CoinsPerSecond * seconds;
+            if (seconds <= 0) return;
+            if (seconds > maxOfflineSeconds) seconds = maxOfflineSeconds;
+
+            // 1. If we have lots of time, simulate in "Chunks"
+            // e.g. Run 1,000 ticks maximum to prevent the app freezing on load
+            int maxTicks = 1000;
+
+            // Calculate how much real time each simulated tick represents
+            // If they were gone for 8 hours (28,800s) and we only run 1000 ticks,
+            // each tick must represent 28.8 seconds of progress.
+            double timePerTick = seconds / maxTicks;
+
+            // Ensure we don't simulate smaller than a normal frame (0.1s)
+            if (timePerTick < TickDuration) {
+                timePerTick = TickDuration;
+                maxTicks = (int)(seconds / TickDuration);
+            }
+
+            for (int i = 0; i < maxTicks; i++) {
+                // Add coins for this chunk of time
+                Coins += CoinsPerSecond * timePerTick;
+                LifetimeCoins += CoinsPerSecond * timePerTick;
+
+                // OPTIONAL: If you add "Auto-Buyers" later, run their logic here!
+                // TryAutoBuyGenerator(); 
+
+                // IMPORTANT: Recalculate CPS because Auto-Buyers might have changed it
+                // RecalcCps(); 
             }
         }
 

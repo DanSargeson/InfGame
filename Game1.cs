@@ -18,6 +18,10 @@ namespace InfGame
         private SpriteFont _font;
         private Texture2D _pixel;
 
+        private int _itemHeight = 100; // The height of one button
+        private int _itemPadding = 20; // The space between buttons
+        private int _listStartY = 0;   // Where the list physically starts on screen
+
         private readonly GameState _state = new();
 
         // UI Components
@@ -280,14 +284,26 @@ namespace InfGame
 
                     // 2. Check Scroll List (Only if inside the list area)
                     else if (_listBounds.Contains(p)) {
-                        var scrollPoint = new Point(p.X, p.Y + (int)_scrollY);
+                        // 1. Calculate where the click is relative to the top of the content
+                        float relativeY = (p.Y - _listStartY) + _scrollY;
 
-                        foreach (var btn in _genButtons) {
+                        // 2. Calculate the index directly
+                        // The total height of one item is Height + Padding
+                        int totalItemHeight = _itemHeight + _itemPadding;
+                        int index = (int)(relativeY / totalItemHeight);
+
+                        // 3. Safety Check: Is this a valid index?
+                        if (index >= 0 && index < _genButtons.Count) {
+                            var btn = _genButtons[index];
+
+                            // 4. Hit Test (still needed to check X bounds or if we clicked the gap)
+                            // We offset the point by scrollY to match the button's logical coordinates
+                            var scrollPoint = new Point(p.X, p.Y + (int)_scrollY);
+
                             if (btn.HitTest(scrollPoint)) {
                                 btn.TriggerFlash();
                                 btn.OnClick?.Invoke();
                                 uiHit = true;
-                                break; // Stop checking other buttons
                             }
                         }
                     }
@@ -389,6 +405,11 @@ namespace InfGame
             int tapY = 800;
             int btnHeight = 80;
 
+            _itemHeight = btnHeight;
+            _itemPadding = pad;
+
+           
+
             // Tap Button
             //_tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
             _prestigeButton = GetPooledButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
@@ -416,6 +437,7 @@ namespace InfGame
 
             // 2. List Area
             int listStartY = tapY + btnHeight + pad;
+            _listStartY = listStartY; // <--- Save this!
             _listBounds = new Rectangle(0, listStartY, w, h - listStartY);
 
             // 3. Generate List Content based on ViewMode
