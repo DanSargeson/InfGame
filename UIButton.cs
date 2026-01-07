@@ -32,6 +32,17 @@ namespace InfGame
             if (_flashTimer > 0) _flashTimer -= (float)dt;
         }
 
+        public void Configure(Rectangle bounds, string text, Action onClick) {
+            Bounds = bounds;
+            Text = text;
+            OnClick = onClick;
+
+            // Reset State
+            IsActive = true;
+            Tag = null; // Important: Clear old data references!
+            _flashTimer = 0f;
+        }
+
         public void Draw(SpriteBatch sb, SpriteFont font, Texture2D pixel, int scrollOffset = 0) {
             // Calculate screen position based on scroll
             var screenRect = new Rectangle(Bounds.X, Bounds.Y - scrollOffset, Bounds.Width, Bounds.Height);

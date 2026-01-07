@@ -1,0 +1,85 @@
+{
+  "Generators": [
+    {
+      "Id": "gen_t1",
+      "Name": "Intern",
+      "BaseCost": {
+        "m": 1.5,
+        "e": 1
+      },
+      "BaseRevenue": {
+        "m": 5.0,
+        "e": -1
+      },
+      "CostMultiplier": 1.15
+    },
+    {
+      "Id": "gen_t2",
+      "Name": "Manager",
+      "BaseCost": {
+        "m": 1.0,
+        "e": 2
+      },
+      "BaseRevenue": {
+        "m": 4.0,
+        "e": 0
+      },
+      "CostMultiplier": 1.15
+    },
+    {
+      "Id": "gen_t3",
+      "Name": "Executive",
+      "BaseCost": {
+        "m": 1.1,
+        "e": 3
+      },
+      "BaseRevenue": {
+        "m": 3.2,
+        "e": 1
+      },
+      "CostMultiplier": 1.15
+    }
+  ],
+  "Upgrades": [
+    {
+      "Id": "upg_t1_1",
+      "Name": "Caffeine",
+      "Description": "Interns work 2x faster",
+      "Cost": {
+        "m": 1.0,
+        "e": 2
+      },
+      "CostCurrency": "Coins",
+      "Type": "GeneratorMultiplier",
+      "TargetId": "gen_t1",
+      "Multiplier": 2.0
+    },
+    {
+      "Id": "asc_tick_1",
+      "Name": "Temporal Flux",
+      "Description": "Game runs 50% faster (Perm)",
+      "Cost": {
+        "m": 1.0,
+        "e": 0
+      },
+      "CostCurrency": "PrestigePoints",
+      "Type": "GlobalMultiplier",
+      "Multiplier": 1.5
+    }
+  ],
+  "UpgradeSeries": [
+    {
+      "Id": "series_t1",
+      "NameFormat": "Intern Training {0}",
+      "TargetId": "gen_t1",
+      "Type": "GeneratorMultiplier",
+      "BaseCost": {
+        "m": 1.0,
+        "e": 3
+      },
+      "CostMultiplier": 5.0,
+      "MultiplierPerLevel": 2.0,
+      "CostCurrency": "Coins"
+    }
+  ]
+}

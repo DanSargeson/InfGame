@@ -27,12 +27,16 @@ namespace InfGame
         //   private UiButton _tapButton;
         private List<UiButton> _genButtons = new();
 
+        private Stack<UiButton> _buttonPool = new Stack<UiButton>(); //Moving to object pooling UI buttons to reduce garbage collection
+
         private UiButton _prestigeButton;
 
         private List<FloatingText> _particles = new();
 
         //The Time Accumulator
         private double _accumulator = 0.0;
+
+
 
         // Scroll State
         private float _scrollY = 0;
@@ -72,6 +76,20 @@ namespace InfGame
             _pixel = new Texture2D(GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
 
+
+            try {
+                // "Content/GameData.json" matches the file path in your project
+                using (var stream = TitleContainer.OpenStream("Content/GameData.json"))
+                using (var reader = new StreamReader(stream)) {
+                    var json = reader.ReadToEnd();
+                    GameData.Load(json);
+                }
+            }
+            catch (Exception ex) {
+                // Fallback or Crash if critical data is missing
+                System.Diagnostics.Debug.WriteLine($"Failed to load GameData: {ex.Message}");
+            }
+
             var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             _savePath = Path.Combine(dir, "infgame_save.json");
             _needsLayout = true;
@@ -85,6 +103,23 @@ namespace InfGame
 
             var finalPos = new Vector2(pos.X + xOffset, pos.Y);
             _particles.Add(new FloatingText(finalPos, text, color));
+        }
+
+        private UiButton GetPooledButton(Rectangle bounds, string text, Action onClick) {
+            UiButton btn;
+            if (_buttonPool.Count > 0) {
+                btn = _buttonPool.Pop();
+                btn.Configure(bounds, text, onClick);
+            }
+            else {
+                btn = new UiButton(bounds, text, onClick);
+            }
+            return btn;
+        }
+
+        // Helper: Return a button to the pool
+        private void ReturnToPool(UiButton btn) {
+            if (btn != null) _buttonPool.Push(btn);
         }
 
         protected override void Update(GameTime gameTime) {
@@ -102,11 +137,9 @@ namespace InfGame
             while (_accumulator >= tickRate) {
                 _state.Tick(); // Logic runs here
                 _accumulator -= tickRate;
-
-                // UI Updates that rely on logic (like disabling buttons) 
-                // can technically happen here or once per frame below.
-                UpdateGeneratorButtons(tickRate);
             }
+            
+            UpdateGeneratorButtons(tickRate);
 
 
 
@@ -336,6 +369,17 @@ namespace InfGame
         }
 
         private void LayoutUI() {
+
+            ReturnToPool(_toggleButton);
+            ReturnToPool(_prestigeButton);
+            ReturnToPool(_buyMultButton);
+
+            foreach (var btn in _genButtons) {
+                ReturnToPool(btn);
+            }
+            _genButtons.Clear();
+
+
             int w = GraphicsDevice.Viewport.Width;
             int h = GraphicsDevice.Viewport.Height;
             int pad = 20;
@@ -347,19 +391,19 @@ namespace InfGame
 
             // Tap Button
             //_tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
-            _prestigeButton = new UiButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
+            _prestigeButton = GetPooledButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
                 _state.DoPrestige();
                 _needsLayout = true; // Rebuild list (it's empty now!)
             });
 
             // Toggle Button (New)
-            _toggleButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "VIEW: GENERATORS", () => {
+            _toggleButton = GetPooledButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "VIEW: GENERATORS", () => {
                 // Swap Mode
                 _viewMode = (_viewMode == ViewMode.Generators) ? ViewMode.Upgrades : ViewMode.Generators;
                 _needsLayout = true; // Rebuild list
             });
 
-            _buyMultButton = new UiButton(new Rectangle(pad + w/2 + pad, 250, w/2, 60), "BUY: 1x", () => {
+            _buyMultButton = GetPooledButton(new Rectangle(pad + w/2 + pad, 250, w/2, 60), "BUY: 1x", () => {
                 // Toggle Logic: 1 -> 10 -> 100 -> Max -> 1
                 if (_state.BuyAmount == 1) _state.BuyAmount = 10;
                 else if (_state.BuyAmount == 10) _state.BuyAmount = 100;
@@ -383,7 +427,7 @@ namespace InfGame
                 // Show Generators
                 foreach (var def in GameData.Generators) {
                     string id = def.Id;
-                    var btn = new UiButton(new Rectangle(pad, currentY, w - pad * 2, btnH), def.Name, () => _state.TryBuyGenerator(id));
+                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnH), def.Name, () => _state.TryBuyGenerator(id));
                     btn.Tag = def;
                     _genButtons.Add(btn);
                     currentY += btnH + pad;
@@ -399,7 +443,7 @@ namespace InfGame
                     // Add description to button text
                     string text = $"{def.Name}\n{def.Description}";
 
-                    var btn = new UiButton(new Rectangle(pad, currentY, w - pad * 2, btnH), text, () => {
+                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnH), text, () => {
                         if (_state.TryBuyUpgrade(id)) {
                             _needsLayout = true; // Rebuild list to remove bought item
                         }
@@ -427,7 +471,7 @@ namespace InfGame
 
         string text = $"{name} - {desc}\n{price}";
 
-        var btn = new UiButton(new Rectangle(pad, currentY, w - pad * 2, btnH), text, () => {
+        var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnH), text, () => {
              // Use the new Buy Method
              if (_state.TryBuyProceduralUpgrade(id)) {
                  _needsLayout = true; // Rebuild to update cost/level text

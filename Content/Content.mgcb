@@ -13,6 +13,9 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin GameData.json
+/copy:GameData.json
+
 #begin pixel.png
 /importer:TextureImporter
 /processor:TextureProcessor
