@@ -16,6 +16,8 @@ namespace InfGame
         public Dictionary<string, int> GeneratorCounts { get; set; } = new();
         public List<string> UpgradesBought { get; set; } = new();
 
+        public Dictionary<string, int> ProceduralUpgradeLevels { get; set; } = new();
+
         public BigDouble TapValue { get; set; }
         public DateTimeOffset LastSavedUtc { get; set; }
     }

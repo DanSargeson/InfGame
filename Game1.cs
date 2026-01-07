@@ -23,8 +23,8 @@ namespace InfGame
         // UI Components
         private ViewMode _viewMode = ViewMode.Generators;
         private UiButton _toggleButton;
-
-     //   private UiButton _tapButton;
+        private UiButton _buyMultButton;
+        //   private UiButton _tapButton;
         private List<UiButton> _genButtons = new();
 
         private UiButton _prestigeButton;
@@ -156,20 +156,39 @@ namespace InfGame
 
                 // CASE 1: It is a Generator
                 if (btn.Tag is GeneratorDef genDef) {
-                    var cost = _state.GetCost(genDef.Id);
-                    var count = _state.GetCount(genDef.Id);
+                    // 1. Determine how many we are trying to buy
+                    int amount = _state.BuyAmount;
+                    string prefix = $"x{amount}";
 
-                    btn.Text = $"{genDef.Name} ({count})\n{NumberFormat.Compact(cost)}";
+                    if (amount == -1) {
+                        // Max Logic: Show how many we CAN buy
+                        amount = _state.GetMaxBuyable(genDef.Id);
+                        // If we can't afford any, show cost of 1 (grayed out) so they know goal
+                        if (amount == 0) {
+                            amount = 1;
+                            prefix = "Max";
+                        }
+                        else {
+                            prefix = $"x{amount}";
+                        }
+                    }
 
-                    // Active if we can afford it
-                    btn.IsActive = _state.Coins >= cost;
+                    // 2. Calculate Cost
+                    var totalCost = _state.GetBulkCost(genDef.Id, amount);
+                    var currentCount = _state.GetCount(genDef.Id);
+
+                    // 3. Update UI
+                    btn.Text = $"{genDef.Name} ({currentCount})\n{prefix}: {NumberFormat.Compact(totalCost)}";
+                    btn.IsActive = _state.Coins >= totalCost;
+                    string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
+                    _buyMultButton.Text = $"BUY: {label}";
                 }
                 // CASE 2: It is an Upgrade
                 else if (btn.Tag is UpgradeDef upgDef) {
                     // Show Currency Symbol
                     string priceLabel = upgDef.CostCurrency == CurrencyType.Coins
-        ? NumberFormat.Compact(upgDef.Cost)      // Normal: "$150"
-        : $"{upgDef.Cost.ToDouble()} Points";   // Special: "1 Points"
+                             ? NumberFormat.Compact(upgDef.Cost)      // Normal: "$150"
+                            : $"{upgDef.Cost.ToDouble()} Points";   // Special: "1 Points"
 
                     btn.Text = $"{upgDef.Name}\n{priceLabel}";
 
@@ -184,6 +203,18 @@ namespace InfGame
                     btn.IsActive = !isOwned && canAfford;
 
                     if (isOwned) btn.Text = "BOUGHT";
+                }
+
+                else if (btn.Tag is UpgradeSeriesDef series) {
+                    // Dynamic Text Update (in case you buy it)
+                    int lvl = _state.GetProceduralLevel(series.Id);
+                    var cost = _state.GetProceduralCost(series.Id);
+
+                    // Check Affordability
+                    if (series.CostCurrency == CurrencyType.Coins)
+                        btn.IsActive = _state.Coins >= cost;
+                    else
+                        btn.IsActive = _state.PrestigePoints >= cost;
                 }
             }
         }
@@ -206,6 +237,11 @@ namespace InfGame
                     else if(_prestigeButton.HitTest(p)) {
                         _prestigeButton.TriggerFlash();
                         _prestigeButton.OnClick?.Invoke();
+                        uiHit = true;
+                    }
+                    else if (_buyMultButton.HitTest(p)) {
+                        _buyMultButton.TriggerFlash();
+                        _buyMultButton.OnClick?.Invoke();
                         uiHit = true;
                     }
 
@@ -293,6 +329,7 @@ namespace InfGame
             _spriteBatch.DrawString(_font, presText, new Vector2(50, 280), Color.Gold);
             _spriteBatch.DrawString(_font, multiText, new Vector2(50, 320), Color.Green);
             _toggleButton.Draw(_spriteBatch, _font, _pixel);
+            _buyMultButton.Draw(_spriteBatch, _font, _pixel);
             //_tapButton.Draw(_spriteBatch, _font, _pixel);
             var pad = 50;
             var w = GraphicsDevice.Viewport.Width;
@@ -321,7 +358,17 @@ namespace InfGame
                 _viewMode = (_viewMode == ViewMode.Generators) ? ViewMode.Upgrades : ViewMode.Generators;
                 _needsLayout = true; // Rebuild list
             });
-            
+
+            _buyMultButton = new UiButton(new Rectangle(pad + w/2 + pad, 250, w/2, 60), "BUY: 1x", () => {
+                // Toggle Logic: 1 -> 10 -> 100 -> Max -> 1
+                if (_state.BuyAmount == 1) _state.BuyAmount = 10;
+                else if (_state.BuyAmount == 10) _state.BuyAmount = 100;
+                else if (_state.BuyAmount == 100) _state.BuyAmount = -1; // Max
+                else _state.BuyAmount = 1;
+
+                _needsLayout = true; // Refresh text
+            });
+
 
             // 2. List Area
             int listStartY = tapY + btnHeight + pad;
@@ -361,6 +408,38 @@ namespace InfGame
                     _genButtons.Add(btn);
                     currentY += btnH + pad;
                 }
+
+                // 2. NEW: Infinite Series Upgrades
+    foreach (var series in GameData.UpgradeSeries) {
+        // Create a dynamic button for the *Next* level
+        string id = series.Id;
+        int currentLevel = _state.GetProceduralLevel(id);
+        int nextLevel = currentLevel + 1;
+        var cost = _state.GetProceduralCost(id);
+
+        string name = string.Format(series.NameFormat, nextLevel);
+        string desc = $"(x{series.MultiplierPerLevel} effect)";
+        
+        // Currency formatting
+        string price = series.CostCurrency == CurrencyType.Coins 
+            ? NumberFormat.Compact(cost) 
+            : $"{cost} Pts";
+
+        string text = $"{name} - {desc}\n{price}";
+
+        var btn = new UiButton(new Rectangle(pad, currentY, w - pad * 2, btnH), text, () => {
+             // Use the new Buy Method
+             if (_state.TryBuyProceduralUpgrade(id)) {
+                 _needsLayout = true; // Rebuild to update cost/level text
+             }
+        });
+
+        // Store series in tag for the Update loop
+        btn.Tag = series; 
+        
+        _genButtons.Add(btn);
+        currentY += btnH + pad;
+    }
             }
 
             _maxScroll = Math.Max(0, currentY - h + pad);

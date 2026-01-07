@@ -7,6 +7,8 @@ namespace InfGame
         public static List<GeneratorDef> Generators { get; private set; }
         public static List<UpgradeDef> Upgrades { get; private set; }
 
+        public static List<UpgradeSeriesDef> UpgradeSeries { get; private set; }
+
         static GameData() {
             Generators = new List<GeneratorDef> {
                 new GeneratorDef {
@@ -39,8 +41,41 @@ namespace InfGame
                     BaseCost = new BigDouble(1),
                     BaseRevenue = new BigDouble(1000000)
                 },
+
+
                    
                 // Add "Progression Curve" here
+            };
+
+            UpgradeSeries = new List<UpgradeSeriesDef> {
+                // 1. Intern Infinite Upgrades
+                new UpgradeSeriesDef {
+                    Id = "series_t1",
+                    NameFormat = "T1 {0}", // Becomes "T1 1", "Intern Training 2"...
+                    TargetId = "gen_t1",
+                    Type = UpgradeType.GeneratorMultiplier,
+                    BaseCost = new BigDouble(1000), // Start expensive
+                    CostMultiplier = 5.0,           // Ramps fast
+                    MultiplierPerLevel = 2.0        // x2 power each time
+                },
+                // 2. Global Infinite Upgrades
+                new UpgradeSeriesDef {
+                    Id = "series_global",
+                    NameFormat = "Global x {0}",
+                    Type = UpgradeType.GlobalMultiplier,
+                    BaseCost = new BigDouble(50000),
+                    CostMultiplier = 10.0,
+                    MultiplierPerLevel = 1.5 // x1.5 global boost per level
+                },
+                 // 3. Tap Infinite Upgrades
+                new UpgradeSeriesDef {
+                    Id = "series_tap",
+                    NameFormat = "Tap x {0}",
+                    Type = UpgradeType.TapMultiplier,
+                    BaseCost = new BigDouble(500),
+                    CostMultiplier = 2.5,
+                    MultiplierPerLevel = 2.0
+                }
             };
 
             Upgrades = new List<UpgradeDef> {
@@ -82,6 +117,7 @@ namespace InfGame
                 // Add more upgrades here
             };
         }
+        public static UpgradeSeriesDef GetSeries(string id) => UpgradeSeries.Find(s => s.Id == id);
 
         public static GeneratorDef GetGenerator(string id) => Generators.Find(g => g.Id == id);
         public static UpgradeDef GetUpgrade(string id) => Upgrades.Find(u => u.Id == id);

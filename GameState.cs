@@ -1,4 +1,5 @@
 ﻿using Android.Media;
+using Android.Nfc.Tech;
 using System;
 using System.Collections.Generic;
 
@@ -12,12 +13,17 @@ namespace InfGame
         // Helper: How long is one tick? (e.g., 0.1s)
         public double TickDuration => 1.0 / TargetTicksPerSecond;
 
+        private Dictionary<string, int> _proceduralLevels = new();
+
         public BigDouble Coins { get; private set; }
         public BigDouble CoinsPerSecond { get; private set; }
 
 
         // Inventory: Key = Generator ID, Value = Count owned
         private Dictionary<string, int> _generatorCounts = new();
+
+        // 1 (x1), 10 (x10), 100 (x100), -1 (Max)
+        public int BuyAmount { get; set; } = 1;
 
         private HashSet<string> _purchasedUpgrades = new();
         public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
@@ -29,6 +35,85 @@ namespace InfGame
 
         public BigDouble prestigeMult;
 
+
+        // Helper: Get Level
+        public int GetProceduralLevel(string seriesId) => _proceduralLevels.ContainsKey(seriesId) ? _proceduralLevels[seriesId] : 0;
+
+        // Helper: Calculate Cost for the NEXT level
+        public BigDouble GetProceduralCost(string seriesId) {
+            var def = GameData.GetSeries(seriesId);
+            if (def == null) return BigDouble.Zero;
+
+            int currentLevel = GetProceduralLevel(seriesId);
+            // Formula: Base * (Growth ^ Level)
+            return def.BaseCost * BigDouble.Pow(def.CostMultiplier, currentLevel);
+        }
+
+        public bool TryBuyProceduralUpgrade(string seriesId) {
+            var def = GameData.GetSeries(seriesId);
+            if (def == null) return false;
+
+            var cost = GetProceduralCost(seriesId);
+
+            // Currency Check
+            if (def.CostCurrency == CurrencyType.Coins) {
+                if (Coins < cost) return false;
+                Coins -= cost;
+            }
+            else {
+                if (PrestigePoints < cost) return false;
+                PrestigePoints -= cost;
+            }
+
+            // Increment Level
+            if (!_proceduralLevels.ContainsKey(seriesId)) _proceduralLevels[seriesId] = 0;
+            _proceduralLevels[seriesId]++;
+
+            // Recalc
+            if (def.Type == UpgradeType.TapMultiplier) RecalcTap();
+            else RecalcCps();
+
+            return true;
+        }
+
+
+        // Helper: Calculate Cost for 'count' items
+        public BigDouble GetBulkCost(string id, int count) {
+            var def = GameData.GetGenerator(id);
+            if (def == null) return BigDouble.Zero;
+
+            // Current price of the NEXT single unit
+            var nextCost = GetCost(id);
+            double r = def.CostMultiplier; // e.g., 1.15
+
+            // If buying 1, standard logic
+            if (count == 1) return nextCost;
+
+            // Geometric Sum: Cost * (r^N - 1) / (r - 1)
+            var numerator = BigDouble.Pow(r, count) - 1.0;
+            var denominator = r - 1.0;
+
+            return nextCost * (numerator / denominator);
+        }
+
+        // Helper: Calculate Max we can afford
+        public int GetMaxBuyable(string id) {
+            var def = GameData.GetGenerator(id);
+            if (def == null) return 0;
+
+            var nextCost = GetCost(id);
+            if (Coins < nextCost) return 0;
+
+            double r = def.CostMultiplier;
+
+            // Formula derived from Geometric Sum Inverse:
+            // Max = Log_r( (Coins * (r-1) / NextCost) + 1 )
+
+            var term = (Coins * (r - 1.0)) / nextCost;
+            var logValue = BigDouble.Log10(term + 1.0) / Math.Log10(r);
+
+            return (int)Math.Floor(logValue);
+        }
 
 
         public void Tick() {
@@ -68,6 +153,7 @@ namespace InfGame
                     keptUpgrades.Add(id);
                 }
             }
+            _proceduralLevels.Clear();
             _purchasedUpgrades.Clear(); // Usually we wipe upgrades too
             foreach (var id in keptUpgrades) _purchasedUpgrades.Add(id);
             _generatorCounts.Clear();
@@ -91,6 +177,16 @@ namespace InfGame
 
         public bool TryBuyGenerator(string id) {
             var cost = GetCost(id);
+            int amountToBuy = BuyAmount;
+
+            // Handle "Max" mode
+            if (BuyAmount == -1) {
+                amountToBuy = GetMaxBuyable(id);
+                if (amountToBuy <= 0) return false; // Can't afford even 1
+            }
+
+            var totalCost = GetBulkCost(id, amountToBuy);
+
             if (Coins < cost) return false;
 
             Coins -= cost;
@@ -141,6 +237,21 @@ namespace InfGame
                 if (def.Type == UpgradeType.TapMultiplier) mult *= def.Multiplier;
             }
 
+            foreach (var series in GameData.UpgradeSeries) {
+                if (series.Type == UpgradeType.TapMultiplier) {
+                    int lvl = GetProceduralLevel(series.Id);
+                    if (lvl > 0) mult *= Math.Pow(series.MultiplierPerLevel, lvl);
+                }
+            }
+
+
+            foreach (var series in GameData.UpgradeSeries) {
+                if (series.Type == UpgradeType.TapMultiplier) {
+                    int lvl = GetProceduralLevel(series.Id);
+                    if (lvl > 0) mult *= Math.Pow(series.MultiplierPerLevel, lvl);
+                }
+            }
+
             // --- FIX: Apply Prestige Bonus to Tap ---
             // Bonus = 1 + (Points * 0.10)
             prestigeMult = BigDouble.One + (PrestigePoints * PrestigeBonusPercent);
@@ -161,6 +272,13 @@ namespace InfGame
                 if (def.Type == UpgradeType.GlobalMultiplier) globalMult *= def.Multiplier;
             }
 
+            foreach (var series in GameData.UpgradeSeries) {
+                if (series.Type == UpgradeType.GlobalMultiplier) {
+                    int lvl = GetProceduralLevel(series.Id);
+                    if (lvl > 0) globalMult *= Math.Pow(series.MultiplierPerLevel, lvl);
+                }
+            }
+
             // 2. Loop Generators
             foreach (var kvp in _generatorCounts) {
                 var def = GameData.GetGenerator(kvp.Key);
@@ -172,6 +290,13 @@ namespace InfGame
                     var uDef = GameData.GetUpgrade(uid);
                     if (uDef.Type == UpgradeType.GeneratorMultiplier && uDef.TargetId == def.Id) {
                         genMult *= uDef.Multiplier;
+                    }
+                }
+
+                foreach (var series in GameData.UpgradeSeries) {
+                    if (series.Type == UpgradeType.GeneratorMultiplier && series.TargetId == def.Id) {
+                        int lvl = GetProceduralLevel(series.Id);
+                        if (lvl > 0) genMult *= Math.Pow(series.MultiplierPerLevel, lvl);
                     }
                 }
 
@@ -220,6 +345,8 @@ namespace InfGame
                 foreach (var id in data.UpgradesBought) _purchasedUpgrades.Add(id);
             }
 
+            _proceduralLevels = data.ProceduralUpgradeLevels ?? new Dictionary<string, int>();
+
             RecalcTap();
             RecalcCps();
         }
@@ -231,7 +358,8 @@ namespace InfGame
                 LifetimeCoins = LifetimeCoins,
                 PrestigePoints = PrestigePoints,
                 GeneratorCounts = new Dictionary<string, int>(_generatorCounts),
-                UpgradesBought = new List<string>(_purchasedUpgrades) // Convert HashSet to List
+                UpgradesBought = new List<string>(_purchasedUpgrades), // Convert HashSet to List
+                ProceduralUpgradeLevels = new Dictionary<string, int>(_proceduralLevels)
             };
         }
     }
