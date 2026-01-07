@@ -5,6 +5,9 @@ namespace InfGame
 {
     public sealed class SaveData
     {
+
+        public int Version { get; set; } = 1;
+
         public BigDouble Coins { get; set; }
 
         //Total money earned across this specific run (used for prestige math)

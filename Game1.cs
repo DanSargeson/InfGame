@@ -463,7 +463,10 @@ namespace InfGame
                     _state.ApplyOfflineProgress(data.LastSavedUtc, DateTimeOffset.UtcNow);
                 }
             }
-            catch { }
+            catch (Exception ex){
+
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
         }
 
         private void Save() {
@@ -472,7 +475,10 @@ namespace InfGame
                 var json = JsonSerializer.Serialize(data, _jsonOptions);
                 File.WriteAllText(_savePath, json);
             }
-            catch { }
+            catch(Exception ex) {
+
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
         }
 
         protected override void OnDeactivated(object sender, EventArgs args) { Save(); base.OnDeactivated(sender, args); }

@@ -176,7 +176,6 @@ namespace InfGame
         }
 
         public bool TryBuyGenerator(string id) {
-            var cost = GetCost(id);
             int amountToBuy = BuyAmount;
 
             // Handle "Max" mode
@@ -185,14 +184,22 @@ namespace InfGame
                 if (amountToBuy <= 0) return false; // Can't afford even 1
             }
 
+            // 1. Calculate the REAL total cost
             var totalCost = GetBulkCost(id, amountToBuy);
 
-            if (Coins < cost) return false;
+            // 2. CHECK: Can we afford the TOTAL, not just one?
+            // FIX: Changed 'cost' to 'totalCost'
+            if (Coins < totalCost) return false;
 
-            Coins -= cost;
+            // 3. SPEND: Deduct the TOTAL
+            // FIX: Changed 'cost' to 'totalCost'
+            Coins -= totalCost;
 
             if (!_generatorCounts.ContainsKey(id)) _generatorCounts[id] = 0;
-            _generatorCounts[id]++;
+
+            // 4. ADD: Add the AMOUNT, not just ++
+            // FIX: Changed '++' to '+= amountToBuy'
+            _generatorCounts[id] += amountToBuy;
 
             RecalcCps();
             return true;
