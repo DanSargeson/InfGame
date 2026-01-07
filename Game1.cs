@@ -166,21 +166,30 @@ namespace InfGame
                 }
                 // CASE 2: It is an Upgrade
                 else if (btn.Tag is UpgradeDef upgDef) {
-                    // Upgrades have fixed costs (usually)
-                    btn.Text = $"{upgDef.Name}\n{NumberFormat.Compact(upgDef.Cost)}";
+                    // Show Currency Symbol
+                    string priceLabel = upgDef.CostCurrency == CurrencyType.Coins
+        ? NumberFormat.Compact(upgDef.Cost)      // Normal: "$150"
+        : $"{upgDef.Cost.ToDouble()} Points";   // Special: "1 Points"
 
-                    // Active if afford AND we don't own it yet 
-                    // (though usually layout hides owned ones, this is a safety check)
+                    btn.Text = $"{upgDef.Name}\n{priceLabel}";
+
+                    // Check Affordability based on the correct currency
+                    bool canAfford = false;
+                    if (upgDef.CostCurrency == CurrencyType.Coins)
+                        canAfford = _state.Coins >= upgDef.Cost;
+                    else
+                        canAfford = _state.PrestigePoints >= upgDef.Cost;
+
                     bool isOwned = _state.HasUpgrade(upgDef.Id);
-                    btn.IsActive = !isOwned && _state.Coins >= upgDef.Cost;
+                    btn.IsActive = !isOwned && canAfford;
 
-                    // Optional: If owned, maybe change text to "BOUGHT"
                     if (isOwned) btn.Text = "BOUGHT";
                 }
             }
         }
 
         private void HandleInput() {
+
             while (TouchPanel.IsGestureAvailable) {
                 var g = TouchPanel.ReadGesture();
                 if (g.GestureType == GestureType.Tap) {
@@ -217,6 +226,17 @@ namespace InfGame
                     // 3. The "Tap Anywhere" Fallback
                     // If we didn't hit any UI, it's a gameplay tap!
                     if (!uiHit) {
+
+                        //MULTI TOUCH
+                        TouchCollection tc = TouchPanel.GetState();
+                        foreach (TouchLocation tl in tc) {
+
+                            if ((tl.State == TouchLocationState.Pressed) || (tl.State == TouchLocationState.Moved)) {
+                                _state.Tap();
+                                SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
+                            }
+                        }
+
                         _state.Tap();
                         // Spawn text exactly where the finger is
                         SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
@@ -265,9 +285,13 @@ namespace InfGame
         private void DrawHeader() {
             var coinsText = $"Coins: {NumberFormat.Compact(_state.Coins)}";
             var cpsText = $"CPS: {NumberFormat.Compact(_state.CoinsPerSecond, 2)}";
+            var presText = $"Prestige Points: {NumberFormat.Compact(_state.PrestigePoints)}";
+            var multiText = $"Prestige Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}";
             _prestigeButton.Draw(_spriteBatch, _font, _pixel);
             _spriteBatch.DrawString(_font, coinsText, new Vector2(50, 200), Color.White);
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
+            _spriteBatch.DrawString(_font, presText, new Vector2(50, 280), Color.Gold);
+            _spriteBatch.DrawString(_font, multiText, new Vector2(50, 320), Color.Green);
             _toggleButton.Draw(_spriteBatch, _font, _pixel);
             //_tapButton.Draw(_spriteBatch, _font, _pixel);
             var pad = 50;

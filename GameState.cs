@@ -25,8 +25,10 @@ namespace InfGame
 
         public BigDouble LifetimeCoins { get; private set; }
         public BigDouble PrestigePoints { get; private set; }
-
         public double PrestigeBonusPercent => 0.10;
+
+        public BigDouble prestigeMult;
+
 
 
         public void Tick() {
@@ -50,7 +52,7 @@ namespace InfGame
 
         public void DoPrestige() {
             var gain = CalculatePrestigeGain();
-            if (gain <= 0.001) return; // Safety check
+            if (gain < 1) return; // Safety check
 
             // 1. Bank the Points
             PrestigePoints += gain;
@@ -59,9 +61,16 @@ namespace InfGame
             Coins = BigDouble.Zero;
             LifetimeCoins = BigDouble.Zero; // Reset run counter
 
-            _generatorCounts.Clear();
+            var keptUpgrades = new List<string>();
+            foreach (var id in _purchasedUpgrades) {
+                var def = GameData.GetUpgrade(id);
+                if (def != null && def.CostCurrency == CurrencyType.PrestigePoints) {
+                    keptUpgrades.Add(id);
+                }
+            }
             _purchasedUpgrades.Clear(); // Usually we wipe upgrades too
-
+            foreach (var id in keptUpgrades) _purchasedUpgrades.Add(id);
+            _generatorCounts.Clear();
             // 3. Recalculate Logic
             RecalcTap();
             RecalcCps();
@@ -102,12 +111,23 @@ namespace InfGame
             var def = GameData.GetUpgrade(id);
             if (def == null) return false;
 
-            if (Coins < def.Cost) return false;
+            //
 
-            Coins -= def.Cost;
+            if (def.CostCurrency == CurrencyType.Coins) {
+                if (Coins < def.Cost) return false;
+                Coins -= def.Cost;
+            }
+            else if (def.CostCurrency == CurrencyType.PrestigePoints) {
+                if (PrestigePoints < def.Cost) return false;
+                PrestigePoints -= def.Cost;
+
+                // IMPORTANT: Spending points lowers your passive bonus!
+                // This creates a strategic choice: "Do I want the bonus or the upgrade?"
+                // (You must Recalc to reflect the lower bonus)
+            }
+
             _purchasedUpgrades.Add(id);
 
-            // If it was a tap upgrade, recalc tap immediately
             if (def.Type == UpgradeType.TapMultiplier) RecalcTap();
             else RecalcCps();
 
@@ -120,13 +140,18 @@ namespace InfGame
                 var def = GameData.GetUpgrade(id);
                 if (def.Type == UpgradeType.TapMultiplier) mult *= def.Multiplier;
             }
-            TapValue = new BigDouble(1.0) * mult;
+
+            // --- FIX: Apply Prestige Bonus to Tap ---
+            // Bonus = 1 + (Points * 0.10)
+            prestigeMult = BigDouble.One + (PrestigePoints * PrestigeBonusPercent);
+
+            TapValue = new BigDouble(1.0) * mult * prestigeMult;
         }
 
 
         private void RecalcCps() {
             var total = BigDouble.Zero;
-            var prestigeMult = 1.0 + (PrestigePoints.ToDouble() * PrestigeBonusPercent);
+            prestigeMult = BigDouble.One + (PrestigePoints * PrestigeBonusPercent);
 
 
             // 1. Calculate Global Multipliers once

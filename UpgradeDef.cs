@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace InfGame
 {
+
+    public enum CurrencyType { Coins, PrestigePoints }
     public enum UpgradeType
     {
         GeneratorMultiplier, // Buffs a specific ID (e.g. "T1 x2")
@@ -15,6 +17,8 @@ namespace InfGame
 
     public class UpgradeDef
     {
+
+        public CurrencyType CostCurrency { get; set; } = CurrencyType.Coins;
         public string Id { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }

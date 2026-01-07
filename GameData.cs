@@ -69,6 +69,16 @@ namespace InfGame
                     Type = UpgradeType.GlobalMultiplier,
                     Multiplier = 2.0
                 },
+
+                new UpgradeDef {
+                    Id = "asc_tick_1",
+                    Name = "Temporal Flux",
+                    Description = "Game runs 50% faster (Perm)",
+                    Cost = new BigDouble(1), // Costs 1 Prestige Point
+                    CostCurrency = CurrencyType.PrestigePoints, // <--- Costs Points
+                    Type = UpgradeType.GlobalMultiplier,
+                    Multiplier = 1.5
+                },
                 // Add more upgrades here
             };
         }
