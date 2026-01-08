@@ -39,7 +39,6 @@ namespace InfGame
             _jsonOptions = new JsonSerializerOptions { WriteIndented = true };
             _jsonOptions.Converters.Add(new BigDoubleConverter());
 
-            _uiManager = new UIManager(_state, GraphicsDevice);
         }
 
         protected override void Initialize() {
@@ -73,6 +72,7 @@ namespace InfGame
             _savePath = Path.Combine(dir, "infgame_save.json");
             
             LoadOrCreateSave();
+            _uiManager = new UIManager(_state, _graphics.GraphicsDevice);
         }
 
        

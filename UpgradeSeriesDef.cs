@@ -23,6 +23,6 @@ namespace InfGame
         // e.g. 2.0 means each level doubles the previous (x2, x4, x8)
         public double MultiplierPerLevel { get; set; } = 2.0;
 
-        public CurrencyType CostCurrency { get; set; } = CurrencyType.Coins;
+        public CurrencyType CostCurrency { get; set; } = CurrencyType.Souls;
     }
 }

@@ -75,7 +75,7 @@
         "m": 1.0,
         "e": 3
       },
-      "CostCurrency": "Coins",
+      "CostCurrency": "Souls",
       "Type": "GeneratorMultiplier",
       "TargetId": "gen_t1",
       "Multiplier": 2.0
@@ -88,7 +88,7 @@
         "m": 1.0,
         "e": 2
       },
-      "CostCurrency": "Coins",
+      "CostCurrency": "Souls",
       "Type": "TapMultiplier",
       "Multiplier": 1.1
     },
@@ -100,7 +100,7 @@
         "m": 1.0,
         "e": 0
       },
-      "CostCurrency": "PrestigePoints",
+      "CostCurrency": "RebirthPoints",
       "Type": "GlobalMultiplier",
       "Multiplier": 1.5
     }
@@ -117,7 +117,7 @@
       },
       "CostMultiplier": 5.0,
       "MultiplierPerLevel": 2.0,
-      "CostCurrency": "Coins"
+      "CostCurrency": "Souls"
     },
     {
       "Id": "series_global",
@@ -129,7 +129,7 @@
       },
       "CostMultiplier": 10.0,
       "MultiplierPerLevel": 1.5,
-      "CostCurrency": "Coins"
+      "CostCurrency": "Souls"
     },
     {
       "Id": "series_tap",
@@ -141,7 +141,7 @@
       },
       "CostMultiplier": 2.5,
       "MultiplierPerLevel": 1.2,
-      "CostCurrency": "Coins"
+      "CostCurrency": "Souls"
     }
   ]
 }

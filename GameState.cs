@@ -56,7 +56,7 @@ namespace InfGame
             var cost = GetProceduralCost(seriesId);
 
             // Currency Check
-            if (def.CostCurrency == CurrencyType.Coins) {
+            if (def.CostCurrency == CurrencyType.Souls) {
                 if (Souls < cost) return false;
                 Souls -= cost;
             }
@@ -124,7 +124,7 @@ namespace InfGame
 
         // --- New Data-Driven Logic ---
 
-        public BigDouble CalculatePrestigeGain() {
+        public BigDouble CalculateRebirthGain() {
             // Threshold: Don't give points for pocket change
             if (LifetimeSouls < 1000000) return BigDouble.Zero;
 
@@ -135,8 +135,8 @@ namespace InfGame
             return BigDouble.Floor(gain);
         }
 
-        public void DoPrestige() {
-            var gain = CalculatePrestigeGain();
+        public void DoRebirth() {
+            var gain = CalculateRebirthGain();
             if (gain < 1) return; // Safety check
 
             // 1. Bank the Points
@@ -149,7 +149,7 @@ namespace InfGame
             var keptUpgrades = new List<string>();
             foreach (var id in _purchasedUpgrades) {
                 var def = GameData.GetUpgrade(id);
-                if (def != null && def.CostCurrency == CurrencyType.PrestigePoints) {
+                if (def != null && def.CostCurrency == CurrencyType.RebirthPoints) {
                     keptUpgrades.Add(id);
                 }
             }
@@ -216,11 +216,11 @@ namespace InfGame
 
             //
 
-            if (def.CostCurrency == CurrencyType.Coins) {
+            if (def.CostCurrency == CurrencyType.Souls) {
                 if (Souls < def.Cost) return false;
                 Souls -= def.Cost;
             }
-            else if (def.CostCurrency == CurrencyType.PrestigePoints) {
+            else if (def.CostCurrency == CurrencyType.RebirthPoints) {
                 if (RebirthPoints < def.Cost) return false;
                 RebirthPoints -= def.Cost;
 

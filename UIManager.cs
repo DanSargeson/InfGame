@@ -111,14 +111,14 @@ namespace InfGame
             HandleInput();
 
             // Update Prestige Button
-            var potentialGain = _state.CalculatePrestigeGain();
+            var potentialGain = _state.CalculateRebirthGain();
 
             if (potentialGain > 0) {
                 _prestigeButton.Text = $"PRESTIGE: +{NumberFormat.Compact(potentialGain)} POINTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
                 _prestigeButton.IsActive = true;
             }
             else {
-                _prestigeButton.Text = "Prestige Locked (Need 1M Coins)";
+                _prestigeButton.Text = "Prestige Locked (1M Souls)";
                 _prestigeButton.IsActive = false;
             }
 
@@ -140,13 +140,13 @@ namespace InfGame
         }
 
         private void DrawHeader(Texture2D _pixel, SpriteBatch _spriteBatch, SpriteFont _font) {
-            var coinsText = $"Souls: {NumberFormat.Compact(_state.Souls)}";
+            var soulsText = $"Souls: {NumberFormat.Compact(_state.Souls)}";
             var cpsText = $"Gaining Per Sec: {NumberFormat.Compact(_state.SoulsPerSecond, 2)}";
             var presText = $"Rebirth Points: {NumberFormat.Compact(_state.RebirthPoints)}";
             var multiText = $"Rebirth Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}";
             var corruptionText = $"Corruption Level:";//TODO {_state.CorruptionLevel}";
             _prestigeButton.Draw(_spriteBatch, _font, _pixel);
-            _spriteBatch.DrawString(_font, coinsText, new Vector2(50, 200), Color.White);
+            _spriteBatch.DrawString(_font, soulsText, new Vector2(50, 200), Color.White);
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
             _spriteBatch.DrawString(_font, presText, new Vector2(50, 280), Color.Gold);
             _spriteBatch.DrawString(_font, multiText, new Vector2(50, 320), Color.Green);
@@ -224,7 +224,7 @@ namespace InfGame
                 // CASE 2: It is an Upgrade
                 else if (btn.Tag is UpgradeDef upgDef) {
                     // Show Currency Symbol
-                    string priceLabel = upgDef.CostCurrency == CurrencyType.Coins
+                    string priceLabel = upgDef.CostCurrency == CurrencyType.Souls
                              ? NumberFormat.Compact(upgDef.Cost)      // Normal: "$150"
                             : $"{upgDef.Cost.ToDouble()} Points";   // Special: "1 Points"
 
@@ -232,7 +232,7 @@ namespace InfGame
 
                     // Check Affordability based on the correct currency
                     bool canAfford = false;
-                    if (upgDef.CostCurrency == CurrencyType.Coins)
+                    if (upgDef.CostCurrency == CurrencyType.Souls)
                         canAfford = _state.Souls >= upgDef.Cost;
                     else
                         canAfford = _state.RebirthPoints >= upgDef.Cost;
@@ -249,7 +249,7 @@ namespace InfGame
                     var cost = _state.GetProceduralCost(series.Id);
 
                     // Check Affordability
-                    if (series.CostCurrency == CurrencyType.Coins)
+                    if (series.CostCurrency == CurrencyType.Souls)
                         btn.IsActive = _state.Souls >= cost;
                     else
                         btn.IsActive = _state.RebirthPoints >= cost;
@@ -287,7 +287,7 @@ namespace InfGame
             // Tap Button
             //_tapButton = new UiButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "TAP", () => _state.Tap());
             _prestigeButton = GetPooledButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
-                _state.DoPrestige();
+                _state.DoRebirth();
                 _needsLayout = true; // Rebuild list (it's empty now!)
             });
 
@@ -361,7 +361,7 @@ namespace InfGame
                     string desc = $"(x{series.MultiplierPerLevel} effect)";
 
                     // Currency formatting
-                    string price = series.CostCurrency == CurrencyType.Coins
+                    string price = series.CostCurrency == CurrencyType.Souls
                         ? NumberFormat.Compact(cost)
                         : $"{cost} Pts";
 
