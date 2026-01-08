@@ -2,7 +2,7 @@
   "Generators": [
     {
       "Id": "gen_t1",
-      "Name": "Intern",
+      "Name": "Red",
       "BaseCost": {
         "m": 1.5,
         "e": 1
@@ -15,7 +15,7 @@
     },
     {
       "Id": "gen_t2",
-      "Name": "Manager",
+      "Name": "Orange",
       "BaseCost": {
         "m": 1.0,
         "e": 2
@@ -28,7 +28,7 @@
     },
     {
       "Id": "gen_t3",
-      "Name": "Executive",
+      "Name": "Yellow",
       "BaseCost": {
         "m": 1.1,
         "e": 3
@@ -38,21 +38,59 @@
         "e": 1
       },
       "CostMultiplier": 1.15
+    },
+    {
+      "Id": "gen_t4",
+      "Name": "Green",
+      "BaseCost": {
+        "m": 1.3,
+        "e": 4
+      },
+      "BaseRevenue": {
+        "m": 4.2,
+        "e": 2
+      },
+      "CostMultiplier": 1.15
+    },
+    {
+      "Id": "gen_t5",
+      "Name": "Blue",
+      "BaseCost": {
+        "m": 1.1,
+        "e": 5
+      },
+      "BaseRevenue": {
+        "m": 1.1,
+        "e": 3
+      },
+      "CostMultiplier": 1.15
     }
   ],
   "Upgrades": [
     {
       "Id": "upg_t1_1",
-      "Name": "Caffeine",
-      "Description": "Interns work 2x faster",
+      "Name": "Boost Red Souls",
+      "Description": "Red works 2x faster",
       "Cost": {
         "m": 1.0,
-        "e": 2
+        "e": 3
       },
       "CostCurrency": "Coins",
       "Type": "GeneratorMultiplier",
       "TargetId": "gen_t1",
       "Multiplier": 2.0
+    },
+    {
+      "Id": "series_tap2",
+      "Name": "Increase Tap",
+      "Description": "Tap boost",
+      "Cost": {
+        "m": 1.0,
+        "e": 2
+      },
+      "CostCurrency": "Coins",
+      "Type": "TapMultiplier",
+      "Multiplier": 1.1
     },
     {
       "Id": "asc_tick_1",
@@ -70,7 +108,7 @@
   "UpgradeSeries": [
     {
       "Id": "series_t1",
-      "NameFormat": "Intern Training {0}",
+      "NameFormat": "Red Boost {0}",
       "TargetId": "gen_t1",
       "Type": "GeneratorMultiplier",
       "BaseCost": {
@@ -79,6 +117,30 @@
       },
       "CostMultiplier": 5.0,
       "MultiplierPerLevel": 2.0,
+      "CostCurrency": "Coins"
+    },
+    {
+      "Id": "series_global",
+      "NameFormat": "Boost All Souls {0}",
+      "Type": "GlobalMultiplier",
+      "BaseCost": {
+        "m": 5.0,
+        "e": 4
+      },
+      "CostMultiplier": 10.0,
+      "MultiplierPerLevel": 1.5,
+      "CostCurrency": "Coins"
+    },
+    {
+      "Id": "series_tap",
+      "NameFormat": "Tap Boost {0}",
+      "Type": "TapMultiplier",
+      "BaseCost": {
+        "m": 1.0,
+        "e": 3
+      },
+      "CostMultiplier": 2.5,
+      "MultiplierPerLevel": 1.2,
       "CostCurrency": "Coins"
     }
   ]

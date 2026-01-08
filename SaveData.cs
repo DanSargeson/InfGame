@@ -8,13 +8,13 @@ namespace InfGame
 
         public int Version { get; set; } = 1;
 
-        public BigDouble Coins { get; set; }
+        public BigDouble Souls { get; set; }
 
         //Total money earned across this specific run (used for prestige math)
-        public BigDouble LifetimeCoins { get; set; }
+        public BigDouble LifetimeSouls { get; set; }
 
         //The permanent currency you keep after reset
-        public BigDouble PrestigePoints { get; set; }
+        public BigDouble RebirthPoints { get; set; }
 
         public Dictionary<string, int> GeneratorCounts { get; set; } = new();
         public List<string> UpgradesBought { get; set; } = new();

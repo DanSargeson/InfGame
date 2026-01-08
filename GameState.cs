@@ -15,8 +15,8 @@ namespace InfGame
 
         private Dictionary<string, int> _proceduralLevels = new();
 
-        public BigDouble Coins { get; private set; }
-        public BigDouble CoinsPerSecond { get; private set; }
+        public BigDouble Souls { get; private set; }
+        public BigDouble SoulsPerSecond { get; private set; }
 
 
         // Inventory: Key = Generator ID, Value = Count owned
@@ -29,9 +29,9 @@ namespace InfGame
         public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
         public DateTimeOffset LastSavedUtc { get; private set; } = DateTimeOffset.UtcNow;
 
-        public BigDouble LifetimeCoins { get; private set; }
-        public BigDouble PrestigePoints { get; private set; }
-        public double PrestigeBonusPercent => 0.10;
+        public BigDouble LifetimeSouls { get; private set; }
+        public BigDouble RebirthPoints { get; private set; }
+        public double RebirthBonusPercent => 0.10;
 
         public BigDouble prestigeMult;
 
@@ -57,12 +57,12 @@ namespace InfGame
 
             // Currency Check
             if (def.CostCurrency == CurrencyType.Coins) {
-                if (Coins < cost) return false;
-                Coins -= cost;
+                if (Souls < cost) return false;
+                Souls -= cost;
             }
             else {
-                if (PrestigePoints < cost) return false;
-                PrestigePoints -= cost;
+                if (RebirthPoints < cost) return false;
+                RebirthPoints -= cost;
             }
 
             // Increment Level
@@ -102,14 +102,14 @@ namespace InfGame
             if (def == null) return 0;
 
             var nextCost = GetCost(id);
-            if (Coins < nextCost) return 0;
+            if (Souls < nextCost) return 0;
 
             double r = def.CostMultiplier;
 
             // Formula derived from Geometric Sum Inverse:
             // Max = Log_r( (Coins * (r-1) / NextCost) + 1 )
 
-            var term = (Coins * (r - 1.0)) / nextCost;
+            var term = (Souls * (r - 1.0)) / nextCost;
             var logValue = BigDouble.Log10(term + 1.0) / Math.Log10(r);
 
             return (int)Math.Floor(logValue);
@@ -117,19 +117,19 @@ namespace InfGame
 
 
         public void Tick() {
-            var income = CoinsPerSecond * TickDuration;
-            Coins += income;
-            LifetimeCoins += income; // <--- Track it!
+            var income = SoulsPerSecond * TickDuration;
+            Souls += income;
+            LifetimeSouls += income; // <--- Track it!
         }
 
         // --- New Data-Driven Logic ---
 
         public BigDouble CalculatePrestigeGain() {
             // Threshold: Don't give points for pocket change
-            if (LifetimeCoins < 1000000) return BigDouble.Zero;
+            if (LifetimeSouls < 1000000) return BigDouble.Zero;
 
             // Formula: (Lifetime / 1M) ^ (1/3)
-            var baseVal = LifetimeCoins / 1000000.0;
+            var baseVal = LifetimeSouls / 1000000.0;
             var gain = BigDouble.Pow(baseVal, 1.0 / 3.0);
 
             return BigDouble.Floor(gain);
@@ -140,11 +140,11 @@ namespace InfGame
             if (gain < 1) return; // Safety check
 
             // 1. Bank the Points
-            PrestigePoints += gain;
+            RebirthPoints += gain;
 
             // 2. Reset the Run
-            Coins = BigDouble.Zero;
-            LifetimeCoins = BigDouble.Zero; // Reset run counter
+            Souls = BigDouble.Zero;
+            LifetimeSouls = BigDouble.Zero; // Reset run counter
 
             var keptUpgrades = new List<string>();
             foreach (var id in _purchasedUpgrades) {
@@ -189,11 +189,11 @@ namespace InfGame
 
             // 2. CHECK: Can we afford the TOTAL, not just one?
             // FIX: Changed 'cost' to 'totalCost'
-            if (Coins < totalCost) return false;
+            if (Souls < totalCost) return false;
 
             // 3. SPEND: Deduct the TOTAL
             // FIX: Changed 'cost' to 'totalCost'
-            Coins -= totalCost;
+            Souls -= totalCost;
 
             if (!_generatorCounts.ContainsKey(id)) _generatorCounts[id] = 0;
 
@@ -217,12 +217,12 @@ namespace InfGame
             //
 
             if (def.CostCurrency == CurrencyType.Coins) {
-                if (Coins < def.Cost) return false;
-                Coins -= def.Cost;
+                if (Souls < def.Cost) return false;
+                Souls -= def.Cost;
             }
             else if (def.CostCurrency == CurrencyType.PrestigePoints) {
-                if (PrestigePoints < def.Cost) return false;
-                PrestigePoints -= def.Cost;
+                if (RebirthPoints < def.Cost) return false;
+                RebirthPoints -= def.Cost;
 
                 // IMPORTANT: Spending points lowers your passive bonus!
                 // This creates a strategic choice: "Do I want the bonus or the upgrade?"
@@ -261,7 +261,7 @@ namespace InfGame
 
             // --- FIX: Apply Prestige Bonus to Tap ---
             // Bonus = 1 + (Points * 0.10)
-            prestigeMult = BigDouble.One + (PrestigePoints * PrestigeBonusPercent);
+            prestigeMult = BigDouble.One + (RebirthPoints * RebirthBonusPercent);
 
             TapValue = new BigDouble(1.0) * mult * prestigeMult;
         }
@@ -269,7 +269,7 @@ namespace InfGame
 
         private void RecalcCps() {
             var total = BigDouble.Zero;
-            prestigeMult = BigDouble.One + (PrestigePoints * PrestigeBonusPercent);
+            prestigeMult = BigDouble.One + (RebirthPoints * RebirthBonusPercent);
 
 
             // 1. Calculate Global Multipliers once
@@ -310,13 +310,13 @@ namespace InfGame
                 // Base * Count * GenMult * GlobalMult
                 total += def.BaseRevenue * kvp.Value * genMult * globalMult;
             }
-            CoinsPerSecond = total * prestigeMult;
+            SoulsPerSecond = total * prestigeMult;
         }
 
         // --- Standard Stuff ---
 
         public void Tap() {
-            Coins += TapValue;
+            Souls += TapValue;
         }
 
         //TODO
@@ -350,8 +350,8 @@ namespace InfGame
 
             for (int i = 0; i < maxTicks; i++) {
                 // Add coins for this chunk of time
-                Coins += CoinsPerSecond * timePerTick;
-                LifetimeCoins += CoinsPerSecond * timePerTick;
+                Souls += SoulsPerSecond * timePerTick;
+                Souls += SoulsPerSecond * timePerTick;
 
                 // OPTIONAL: If you add "Auto-Buyers" later, run their logic here!
                 // TryAutoBuyGenerator(); 
@@ -366,11 +366,11 @@ namespace InfGame
         }
 
         public void LoadFrom(SaveData data) {
-            Coins = data.Coins;
+            Souls = data.Souls;
             LastSavedUtc = data.LastSavedUtc;
             _generatorCounts = data.GeneratorCounts ?? new Dictionary<string, int>();
-            LifetimeCoins = data.LifetimeCoins;
-            PrestigePoints = data.PrestigePoints;
+            LifetimeSouls = data.LifetimeSouls;
+            RebirthPoints = data.RebirthPoints;
             // Load Upgrades
             _purchasedUpgrades.Clear();
             if (data.UpgradesBought != null) {
@@ -385,10 +385,10 @@ namespace InfGame
 
         public SaveData ToSaveData() {
             return new SaveData {
-                Coins = Coins,
+                Souls = Souls,
                 LastSavedUtc = DateTimeOffset.UtcNow,
-                LifetimeCoins = LifetimeCoins,
-                PrestigePoints = PrestigePoints,
+                LifetimeSouls = LifetimeSouls,
+                RebirthPoints = RebirthPoints,
                 GeneratorCounts = new Dictionary<string, int>(_generatorCounts),
                 UpgradesBought = new List<string>(_purchasedUpgrades), // Convert HashSet to List
                 ProceduralUpgradeLevels = new Dictionary<string, int>(_proceduralLevels)
