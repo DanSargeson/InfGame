@@ -8,14 +8,18 @@ using System.Collections.Generic;
 
 namespace InfGame
 {
-    internal class UIManager
-    {
+    internal class UIManager {
         private int _itemHeight = 100;
         private int _itemPadding = 20;
         private int _listStartY = 0;
 
         private List<FloatingText> _particles = new();
         private double _accumulator = 0.0;
+
+        public bool _showWelcomeModal { get; set; } = false;
+        public BigDouble _offlineEarnings { get; set; } = BigDouble.Zero;
+        public string _offlineTimeText { get; set; } =  "";
+        public UiButton _collectButton { get; set; }
 
         // Scroll State
         private float _scrollY = 0;
@@ -45,7 +49,7 @@ namespace InfGame
             _graphicsDevice = graphicsDevice;
         }
 
-        private UiButton GetPooledButton(Rectangle bounds, string text, Action onClick) {
+        public UiButton GetPooledButton(Rectangle bounds, string text, Action onClick) {
             UiButton btn;
             if (_buttonPool.Count > 0) {
                 btn = _buttonPool.Pop();
@@ -57,7 +61,7 @@ namespace InfGame
             return btn;
         }
 
-        private void ReturnToPool(UiButton btn) {
+        public void ReturnToPool(UiButton btn) {
             if (btn != null) _buttonPool.Push(btn);
         }
 
@@ -141,6 +145,38 @@ namespace InfGame
                 btn.Draw(_spriteBatch, _font, _pixel, (int)_scrollY);
             }
             _spriteBatch.End();
+
+            if (_showWelcomeModal) {
+                _spriteBatch.Begin();
+
+                var w = _graphicsDevice.Viewport.Width;
+                var h = _graphicsDevice.Viewport.Height;
+
+                // A. Dim Background (Full Screen)
+                // Uses your existing 1x1 pixel stretched to screen size with alpha
+                _spriteBatch.Draw(_pixel, new Rectangle(0, 0, w, h), Color.Black * 0.85f);
+
+                // B. Modal Box (Center)
+                var boxRect = new Rectangle(w / 2 - 150, h / 2 - 100, 300, 250);
+                _spriteBatch.Draw(_pixel, boxRect, Color.DarkSlateGray);
+
+                // C. Text
+                // Helper to center text
+                DrawCenteredString("WELCOME BACK!", h / 2 - 80, Color.Gold, _font, _spriteBatch);
+                DrawCenteredString(_offlineTimeText, h / 2 - 40, Color.White, _font, _spriteBatch);
+                DrawCenteredString($"+{NumberFormat.Compact(_offlineEarnings)}", h / 2, Color.LimeGreen, _font, _spriteBatch);
+
+                // D. Button
+                _collectButton.Draw(_spriteBatch, _font, _pixel);
+
+                _spriteBatch.End();
+            }
+        }
+
+        private void DrawCenteredString(string text, int y, Color color, SpriteFont _font, SpriteBatch _spriteBatch) {
+            var size = _font.MeasureString(text);
+            var x = (_graphicsDevice.Viewport.Width - size.X) / 2;
+            _spriteBatch.DrawString(_font, text, new Vector2(x, y), color);
         }
 
         private void UpdateGeneratorButtons(double dt) {
@@ -315,6 +351,19 @@ namespace InfGame
         private void HandleInput() {
             while (TouchPanel.IsGestureAvailable) {
                 var g = TouchPanel.ReadGesture();
+
+                if (_showWelcomeModal) {
+                    if (g.GestureType == GestureType.Tap) {
+                        var p = new Point((int)g.Position.X, (int)g.Position.Y);
+                        // Only allow clicking the Collect button
+                        if (_collectButton.HitTest(p)) {
+                            _collectButton.TriggerFlash();
+                            _collectButton.OnClick?.Invoke();
+                        }
+                    }
+                    continue; // SKIP everything else
+                }
+
                 if (g.GestureType == GestureType.Tap) {
                     var p = new Point((int)g.Position.X, (int)g.Position.Y);
                     bool uiHit = false;

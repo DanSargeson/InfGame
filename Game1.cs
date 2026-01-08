@@ -18,6 +18,8 @@ namespace InfGame
         private SpriteFont _font;
         private Texture2D _pixel;
 
+        private double _saveTimer = 0;
+
         private readonly GameState _state = new();
 
         private UIManager _uiManager;
@@ -71,15 +73,21 @@ namespace InfGame
             var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             _savePath = Path.Combine(dir, "infgame_save.json");
             
-            LoadOrCreateSave();
             _uiManager = new UIManager(_state, _graphics.GraphicsDevice);
+            LoadOrCreateSave();
         }
 
        
        
 
         protected override void Update(GameTime gameTime) {
-           
+
+            _saveTimer += gameTime.ElapsedGameTime.TotalSeconds;
+            if (_saveTimer > 30.0) { // Save every 30s
+                Save();
+                _saveTimer = 0;
+            }
+
             _uiManager.Update(gameTime);
             //_state.Tick();
             base.Update(gameTime);
@@ -113,7 +121,32 @@ namespace InfGame
                 var data = JsonSerializer.Deserialize<SaveData>(json, _jsonOptions);
                 if (data != null) {
                     _state.LoadFrom(data);
-                    _state.ApplyOfflineProgress(data.LastSavedUtc, DateTimeOffset.UtcNow);
+
+                    // --- NEW OFFLINE LOGIC ---
+                    var now = DateTimeOffset.UtcNow;
+                    _uiManager._offlineEarnings = _state.CalculateOfflineEarnings(data.LastSavedUtc, now);
+
+                    if (_uiManager._offlineEarnings > 0) {
+                        _uiManager._showWelcomeModal = true;
+
+                        var timeSpan = now - data.LastSavedUtc;
+                        _uiManager._offlineTimeText = $"Offline for: {timeSpan.Hours}h {timeSpan.Minutes}m";
+
+                        // Create the Collect Button (Use Object Pooling!)
+                        var w = GraphicsDevice.Viewport.Width;
+                        var h = GraphicsDevice.Viewport.Height;
+
+                        // Center button
+                        _uiManager._collectButton = _uiManager.GetPooledButton(
+                            new Rectangle(w / 2 - 100, h / 2 + 50, 200, 80),
+                            "COLLECT",
+                            () => {
+                                _state.AddCoins(_uiManager._offlineEarnings);
+                                _uiManager._showWelcomeModal = false;
+                               _uiManager.ReturnToPool(_uiManager._collectButton); // Clean up
+                            }
+                        );
+                    }
                 }
             }
             catch (Exception ex){
