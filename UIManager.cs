@@ -154,10 +154,10 @@ namespace InfGame
 
                 // A. Dim Background (Full Screen)
                 // Uses your existing 1x1 pixel stretched to screen size with alpha
-                _spriteBatch.Draw(_pixel, new Rectangle(0, 0, w, h), Color.Black * 0.85f);
+                _spriteBatch.Draw(_pixel, new Rectangle(0, 0, w, h), Color.Black * 0.65f);
 
                 // B. Modal Box (Center)
-                var boxRect = new Rectangle(w / 2 - 150, h / 2 - 100, 300, 250);
+                var boxRect = new Rectangle(w / 2 - 200, h / 2 - 150, 400, 350);
                 _spriteBatch.Draw(_pixel, boxRect, Color.DarkSlateGray);
 
                 // C. Text
@@ -356,7 +356,7 @@ namespace InfGame
                     if (g.GestureType == GestureType.Tap) {
                         var p = new Point((int)g.Position.X, (int)g.Position.Y);
                         // Only allow clicking the Collect button
-                        if (_collectButton.HitTest(p)) {
+                        if (_collectButton != null && _collectButton.HitTest(p)) {
                             _collectButton.TriggerFlash();
                             _collectButton.OnClick?.Invoke();
                         }
