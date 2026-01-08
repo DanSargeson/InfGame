@@ -9,7 +9,7 @@ using Microsoft.Xna.Framework.Input.Touch;
 namespace InfGame
 {
 
-    public enum ViewMode { Generators, Upgrades }
+    public enum ViewMode { Generators, Upgrades, RebirthShop }
 
     public class Game1 : Game
     {
