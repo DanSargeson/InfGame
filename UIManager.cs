@@ -34,7 +34,9 @@ namespace InfGame
         private Rectangle _listBounds; // The visible window for the list
         private bool _needsLayout = true;
 
-        private readonly GameState _state = new();
+        private GameState _state;
+
+        private readonly GraphicsDevice _graphicsDevice;
 
         // UI Components
         private ViewMode _viewMode = ViewMode.Generators;
@@ -50,9 +52,11 @@ namespace InfGame
         // Clipping State (New)
         private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
-        public UIManager() {
+        public UIManager(GameState state, GraphicsDevice graphicsDevice) {
 
+            _state = state;
             _needsLayout = true;
+            _graphicsDevice = graphicsDevice;
         }
 
 
@@ -135,7 +139,7 @@ namespace InfGame
             }
         }
 
-        private void DrawHeader() {
+        private void DrawHeader(Texture2D _pixel, SpriteBatch _spriteBatch, SpriteFont _font) {
             var coinsText = $"Souls: {NumberFormat.Compact(_state.Souls)}";
             var cpsText = $"Gaining Per Sec: {NumberFormat.Compact(_state.SoulsPerSecond, 2)}";
             var presText = $"Rebirth Points: {NumberFormat.Compact(_state.RebirthPoints)}";
@@ -150,14 +154,14 @@ namespace InfGame
             _buyMultButton.Draw(_spriteBatch, _font, _pixel);
             //_tapButton.Draw(_spriteBatch, _font, _pixel);
             var pad = 50;
-            var w = GraphicsDevice.Viewport.Width;
+            var w = _graphicsDevice.Viewport.Width;
         }
 
-        public void Draw(GameTime gameTime, SpriteBatch _spriteBatch, SpriteFont _font) {
+        public void Draw(Texture2D _pixel, SpriteBatch _spriteBatch, SpriteFont _font) {
 
             // --- 1. Draw Header (Static) ---
             _spriteBatch.Begin();
-            DrawHeader();
+            DrawHeader(_pixel, _spriteBatch, _font);
             foreach (var p in _particles) {
                 p.Draw(_spriteBatch, _font);
             }
@@ -168,7 +172,7 @@ namespace InfGame
             // This ensures buttons don't draw over the header when scrolling
             _spriteBatch.Begin(rasterizerState: _scissorState);
 
-            GraphicsDevice.ScissorRectangle = _listBounds;
+            _graphicsDevice.ScissorRectangle = _listBounds;
 
             foreach (var btn in _genButtons) {
                 // Optimization: Don't draw if off-screen
@@ -266,8 +270,8 @@ namespace InfGame
             _genButtons.Clear();
 
 
-            int w = GraphicsDevice.Viewport.Width;
-            int h = GraphicsDevice.Viewport.Height;
+            int w = _graphicsDevice.Viewport.Width;
+            int h = _graphicsDevice.Viewport.Height;
             int pad = 20;
 
             // 1. Header Area

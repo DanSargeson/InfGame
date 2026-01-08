@@ -18,7 +18,9 @@ namespace InfGame
         private SpriteFont _font;
         private Texture2D _pixel;
 
-       private UIManager _uiManager = new();
+        private readonly GameState _state = new();
+
+        private UIManager _uiManager;
 
         // Layout State
         private string _savePath;
@@ -36,6 +38,8 @@ namespace InfGame
 
             _jsonOptions = new JsonSerializerOptions { WriteIndented = true };
             _jsonOptions.Converters.Add(new BigDoubleConverter());
+
+            _uiManager = new UIManager(_state, GraphicsDevice);
         }
 
         protected override void Initialize() {
@@ -89,7 +93,7 @@ namespace InfGame
             GraphicsDevice.Clear(Color.Black);
 
             
-            _uiManager.Draw(gameTime, _spriteBatch, _font);
+            _uiManager.Draw(_pixel, _spriteBatch, _font);
             base.Draw(gameTime);
         }
 
