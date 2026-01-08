@@ -129,8 +129,9 @@ namespace InfGame
                     if (_uiManager._offlineEarnings > 0) {
                         _uiManager._showWelcomeModal = true;
 
+                        
                         var timeSpan = now - data.LastSavedUtc;
-                        _uiManager._offlineTimeText = $"Offline for: {timeSpan.Hours}h {timeSpan.Minutes}m";
+                        _uiManager._offlineTimeText = $"Offline for: {(int)timeSpan.TotalHours}h {timeSpan.Minutes}m";
 
                         // Create the Collect Button (Use Object Pooling!)
                         var w = GraphicsDevice.Viewport.Width;
