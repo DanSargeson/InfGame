@@ -119,7 +119,7 @@ namespace InfGame
             var multiText = $"Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}x";
 
             var corruptionPct = (_state.Corruption * 100).ToString("F1");
-            var speedPct = (_state.TimeScale * 100).ToString("F0");
+            var speedPct = (_state.TimeScale * 100).ToString("F1");
             var bonusPct = ((_state.CorruptionBonus - 1.0) * 100).ToString("F0");
 
             string status = $"Integrity: {speedPct}% (Corruption: {corruptionPct}%)";
@@ -132,8 +132,16 @@ namespace InfGame
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
             _spriteBatch.DrawString(_font, presText, new Vector2(50, 280), Color.Gold);
             _spriteBatch.DrawString(_font, multiText, new Vector2(50, 320), Color.Green);
+
+
+            Color colour = Color.White;
+            if (_state.Corruption > 0.5) colour = Color.Yellow;
+            if(_state.Corruption > 0.65) colour = Color.Orange;
+            if (_state.Corruption > 0.80) colour = Color.OrangeRed;
+            if (_state.Corruption > 0.90) colour = Color.Red;
+
             // Draw these strings in Red or Purple to look "Corrupted"
-            _spriteBatch.DrawString(_font, status, new Vector2(50, 360), Color.Red);
+            _spriteBatch.DrawString(_font, status, new Vector2(50, 360), colour);
             _spriteBatch.DrawString(_font, bonus, new Vector2(50, 400), Color.Plum);
 
             _toggleButton.Draw(_spriteBatch, _font, _pixel);

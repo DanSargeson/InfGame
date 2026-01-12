@@ -10,13 +10,23 @@ namespace InfGame
         // 0.0 = Clean, 1.0 = Fully Corrupted (Stopped)
         public double Corruption { get; private set; } = 0.0;
 
-        // How fast it decays. 0.0001 per tick means it takes ~16 minutes to reach 10% corruption
-        // You can balance this later or make upgrades lower this number.
-        private double _corruptionRate = 0.00005;
+        private double _CurrentCorruptionGrowth = 0.0;
+        private double _BaseCorruptionGrowthRate = 0.001;   //
+        private double _CorruptionGrowthAccleration = 0.0001; // Growth rate increases over time
+
+
+
+        private double PurificationAmount = 0.05; // 5% reduction per purification
+
+        //Exponential bonus
+        //50% Corruption = 1.25x Bonus
+        //90% Corruption = 1.8x Bonus
+        //99% Corruption = 2.5x Bonus
+        public double CorruptionBonus => 1.0 + (Math.Pow(Corruption, 4) * 3.0);
 
         // The Risk/Reward Calculation
-        public double TimeScale => Math.Max(0.1, 1.0 - Corruption); // Never drop below 10% speed
-        public double CorruptionBonus => 1.0 + (Corruption * 2.0); // At 50% corruption, get 2x Rebirth Points
+        public double TimeScale => Math.Max(0.01, 1.0 - Corruption);
+     
 
         // Later, you can upgrade this to 20, 30, etc. to speed up the game.
         public double TargetTicksPerSecond { get; private set; } = 10.0;
@@ -132,13 +142,15 @@ namespace InfGame
 
 
         public void Tick() {
-            if (Corruption < 0.9) { // Cap at 90%
-                Corruption += _corruptionRate;
+            _CurrentCorruptionGrowth += _CorruptionGrowthAccleration * TickDuration;
+            if (Corruption < 0.9900000) { // Cap at 99%
+                Corruption += _CurrentCorruptionGrowth * TickDuration;
+                if(Corruption > 0.9900000) Corruption = 0.9900000;
             }
 
             var income = (SoulsPerSecond * TimeScale) * TickDuration;
             Souls += income;
-            LifetimeSouls += income; // <--- Track it!
+            LifetimeSouls += income;
 
             _autoBuyTimer += TickDuration;
             if (_autoBuyTimer >= _autoBuyInterval) {
@@ -238,6 +250,7 @@ namespace InfGame
             RecalcCps();
 
             Corruption = 0.0; // Reset Corruption
+            _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate; // Reset growth rate
         }
 
         public int GetCount(string id) {
@@ -251,6 +264,12 @@ namespace InfGame
             int count = GetCount(id);
             // Math: BaseCost * (1.15 ^ Count)
             return def.BaseCost * Math.Pow(def.CostMultiplier, count);
+        }
+
+        private void PurifyCorruption() {
+            Corruption -= PurificationAmount;
+            if (Corruption < 0.0) Corruption = 0.0;
+            _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate; // Reset growth rate
         }
 
         public bool TryBuyGenerator(string id) {
@@ -270,6 +289,8 @@ namespace InfGame
             if (Souls < totalCost) return false;
 
             // 3. SPEND: Deduct the TOTAL
+
+            PurifyCorruption();
             // FIX: Changed 'cost' to 'totalCost'
             Souls -= totalCost;
 
@@ -296,6 +317,7 @@ namespace InfGame
 
             if (def.CostCurrency == CurrencyType.Souls) {
                 if (Souls < def.Cost) return false;
+                PurifyCorruption();
                 Souls -= def.Cost;
             }
             else if (def.CostCurrency == CurrencyType.RebirthPoints) {
