@@ -251,7 +251,7 @@ namespace InfGame
         }
 
         private void LayoutUI() {
-            // Return all buttons to pool
+            // ... (Pooling and Setup code remains the same) ...
             ReturnToPool(_toggleButton);
             ReturnToPool(_prestigeButton);
             ReturnToPool(_buyMultButton);
@@ -266,6 +266,8 @@ namespace InfGame
 
             _itemHeight = btnHeight;
             _itemPadding = pad;
+
+            // ... (Button Creation for Rebirth, BuyMult, Toggle remains the same) ...
 
             // 1. Rebirth Button
             _prestigeButton = GetPooledButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
@@ -282,9 +284,8 @@ namespace InfGame
                 _needsLayout = true;
             });
 
-            // 3. View Toggle Button (The Cycle Logic)
+            // 3. View Toggle Button
             _toggleButton = GetPooledButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "", () => {
-                // Cycle: Generators -> Upgrades -> Shop -> Generators
                 if (_viewMode == ViewMode.Generators) _viewMode = ViewMode.Upgrades;
                 else if (_viewMode == ViewMode.Upgrades) _viewMode = ViewMode.RebirthShop;
                 else _viewMode = ViewMode.Generators;
@@ -296,7 +297,6 @@ namespace InfGame
             if (_viewMode == ViewMode.Upgrades) viewName = "UPGRADES";
             if (_viewMode == ViewMode.RebirthShop) viewName = "REBIRTH SHOP";
             _toggleButton.Text = $"VIEW: {viewName}";
-
 
             // 4. Generate List Content
             int listStartY = tapY + btnHeight + pad;
@@ -316,24 +316,17 @@ namespace InfGame
             }
             else {
                 // --- Upgrades (Both Normal & Shop) ---
-
-                // Determine which currency this screen displays
                 var targetCurrency = (_viewMode == ViewMode.Upgrades) ? CurrencyType.Souls : CurrencyType.RebirthPoints;
 
-                // A. Single Upgrades
                 // A. Single Upgrades & Auto-Buyers
                 foreach (var def in GameData.Upgrades) {
-                    // 1. Filter by Currency (Normal vs Rebirth)
                     if (def.CostCurrency != targetCurrency) continue;
 
-                    // 2. Handle OWNED items
+                    // 1. Handle OWNED items
                     if (_state.HasUpgrade(def.Id)) {
                         // If it is an Auto-Buyer, we switch to "Toggle Mode"
                         if (def.Type == UpgradeType.AutoBuyGenerator) {
-                            // Toggle Logic
                             string status = _state.IsAutoBuyerActive(def.Id) ? "ON" : "OFF";
-                            Color statusColor = _state.IsAutoBuyerActive(def.Id) ? Color.Lime : Color.Red; // Visual feedback
-
                             string t = $"{def.Name} (Auto)\nStatus: {status}";
 
                             var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), t, () => {
@@ -341,46 +334,52 @@ namespace InfGame
                                 _needsLayout = true;
                             });
 
-                            // IMPORTANT: Add to list and increment Y
                             btn.Tag = def;
                             _genButtons.Add(btn);
                             currentY += btnHeight + pad;
                         }
 
-                        // 3. Handle UNOWNED items (The "Buy" Button)
-                        string id = def.Id;
-                        string text = $"{def.Name}\n{def.Description}";
-
-                        var buyBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
-                            if (_state.TryBuyUpgrade(id)) _needsLayout = true;
-                        });
-
-                        buyBtn.Tag = def;
-                        _genButtons.Add(buyBtn);
-                        currentY += btnHeight + pad;
+                        // CRITICAL FIX: If we own it, we stop here for this item.
+                        // We do NOT want to fall through and draw a "Buy" button below.
+                        continue;
                     }
 
-                    // B. Infinite Series Upgrades (Fixed Logic: Now supports Rebirth Shop too!)
-                    foreach (var series in GameData.UpgradeSeries) {
-                        if (series.CostCurrency != targetCurrency) continue;
+                    // 2. Handle UNOWNED items (The "Buy" Button)
+                    // This is now outside the 'if (HasUpgrade)' block, so it actually runs!
+                    string id = def.Id;
+                    string text = $"{def.Name}\n{def.Description}";
 
-                        string id = series.Id;
-                        int currentLevel = _state.GetProceduralLevel(id);
-                        int nextLevel = currentLevel + 1;
-                        var cost = _state.GetProceduralCost(id);
+                    var buyBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
+                        if (_state.TryBuyUpgrade(id)) _needsLayout = true;
+                    });
 
-                        string name = string.Format(series.NameFormat, nextLevel);
-                        string desc = $"(x{series.MultiplierPerLevel} effect)";
-                        string price = series.CostCurrency == CurrencyType.Souls ? NumberFormat.Compact(cost) : $"{cost} RP";
+                    buyBtn.Tag = def;
+                    _genButtons.Add(buyBtn);
+                    currentY += btnHeight + pad;
+                }
+                // CRITICAL FIX: The loop for Upgrades ends HERE. 
+                // The Series loop must be OUTSIDE of it.
 
-                        string text = $"{name} - {desc}\n{price}";
-                        var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
-                            if (_state.TryBuyProceduralUpgrade(id)) _needsLayout = true;
-                        });
-                        btn.Tag = series;
-                        _genButtons.Add(btn);
-                        currentY += btnHeight + pad;
-                    }
+                // B. Infinite Series Upgrades
+                foreach (var series in GameData.UpgradeSeries) {
+                    if (series.CostCurrency != targetCurrency) continue;
+
+                    string id = series.Id;
+                    int currentLevel = _state.GetProceduralLevel(id);
+                    int nextLevel = currentLevel + 1;
+                    var cost = _state.GetProceduralCost(id);
+
+                    string name = string.Format(series.NameFormat, nextLevel);
+                    string desc = $"(x{series.MultiplierPerLevel} effect)";
+                    string price = series.CostCurrency == CurrencyType.Souls ? NumberFormat.Compact(cost) : $"{cost} RP";
+
+                    string text = $"{name} - {desc}\n{price}";
+                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
+                        if (_state.TryBuyProceduralUpgrade(id)) _needsLayout = true;
+                    });
+                    btn.Tag = series;
+                    _genButtons.Add(btn);
+                    currentY += btnHeight + pad;
                 }
 
                 _maxScroll = Math.Max(0, currentY - h + pad);
