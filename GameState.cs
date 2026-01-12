@@ -8,7 +8,7 @@ namespace InfGame
     public sealed class GameState
     {
         // 0.0 = Clean, 1.0 = Fully Corrupted (Stopped)
-        public double Corruption { get; private set; } = 0.0;
+        public double _Corruption { get; private set; } = 0.0;
 
         private double _CurrentCorruptionGrowth = 0.0;
         private double _BaseCorruptionGrowthRate = 0.001;   //
@@ -22,11 +22,13 @@ namespace InfGame
         //50% Corruption = 1.25x Bonus
         //90% Corruption = 1.8x Bonus
         //99% Corruption = 2.5x Bonus
-        public double CorruptionBonus => 1.0 + (Math.Pow(Corruption, 4) * 3.0);
+        public double CorruptionBonus => 1.0 + (Math.Pow(_Corruption, 4) * 3.0);
 
         // The Risk/Reward Calculation
-        public double TimeScale => Math.Max(0.01, 1.0 - Corruption);
-     
+        public double TimeScale => Math.Max(0.01, 1.0 - _Corruption);
+
+
+        private HashSet<string> _disabledAutoBuyers = new();
 
         // Later, you can upgrade this to 20, 30, etc. to speed up the game.
         public double TargetTicksPerSecond { get; private set; } = 10.0;
@@ -143,9 +145,9 @@ namespace InfGame
 
         public void Tick() {
             _CurrentCorruptionGrowth += _CorruptionGrowthAccleration * TickDuration;
-            if (Corruption < 0.9900000) { // Cap at 99%
-                Corruption += _CurrentCorruptionGrowth * TickDuration;
-                if(Corruption > 0.9900000) Corruption = 0.9900000;
+            if (_Corruption < 0.9900000) { // Cap at 99%
+                _Corruption += _CurrentCorruptionGrowth * TickDuration;
+                if(_Corruption > 0.9900000) _Corruption = 0.9900000;
             }
 
             var income = (SoulsPerSecond * TimeScale) * TickDuration;
@@ -160,52 +162,52 @@ namespace InfGame
         }
 
         public bool IsAutoBuyerActive(string id) {
-        
-                var def = GameData.GetUpgrade(id);
-                if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
-                    return true;
-                }
-            
-            return false;
+
+            return HasUpgrade(id) && !_disabledAutoBuyers.Contains(id);
+            //    var def = GameData.GetUpgrade(id);
+            //    if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
+            //        return true;
+            //    }
+
+            //return false;
         }
 
         public void ToggleAutoBuyer(string id) {
-        
-                var def = GameData.GetUpgrade(id);
-                if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
-                    if (HasUpgrade(id)) {
-                        _purchasedUpgrades.Remove(id);
-                    }
-                    else {
-                        _purchasedUpgrades.Add(id);
-                    }
-                }
+
+            if (_disabledAutoBuyers.Contains(id))
+                _disabledAutoBuyers.Remove(id);
+            else
+                _disabledAutoBuyers.Add(id);
+
+            //var def = GameData.GetUpgrade(id);
+            //if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
+            //    if (HasUpgrade(id)) {
+            //        _purchasedUpgrades.Remove(id);
+            //    }
+            //    else {
+            //        _purchasedUpgrades.Add(id);
+            //    }
+            //}
         }
 
         private void RunAutoBuyers() {
+
+            int oldBuyAmount = BuyAmount;
+
+            BuyAmount = 1; // Force to 1 for auto-buyers
+
             foreach (var id in _purchasedUpgrades) {
                 var def = GameData.GetUpgrade(id);
                 if (def == null) continue;
 
                 // If this upgrade is an Auto-Buyer...
                 if (def.Type == UpgradeType.AutoBuyGenerator && !string.IsNullOrEmpty(def.TargetId)) {
-
-                    // Try to buy the target generator!
-                    // We use '1' to buy one at a time, or you could make logic to buy Max
-
-                    // NOTE: We duplicate the "Can I afford it?" check here to avoid 
-                    // the overhead of the full TryBuyGenerator function if we are broke.
-                    var cost = GetCost(def.TargetId);
-                    if (Souls >= cost) {
-                        // We reuse your existing method, forcing amount to 1
-                        // You might need to temporarily store the player's BuyAmount preference
-                        int oldBuyAmount = BuyAmount;
-                        BuyAmount = 1;
+                        
                         TryBuyGenerator(def.TargetId);
-                        BuyAmount = oldBuyAmount; // Restore player preference
-                    }
+                    
                 }
             }
+            BuyAmount = oldBuyAmount; // Restore player preference
         }
 
         // --- New Data-Driven Logic ---
@@ -249,7 +251,7 @@ namespace InfGame
             RecalcTap();
             RecalcCps();
 
-            Corruption = 0.0; // Reset Corruption
+            _Corruption = 0.0; // Reset Corruption
             _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate; // Reset growth rate
         }
 
@@ -267,8 +269,8 @@ namespace InfGame
         }
 
         private void PurifyCorruption() {
-            Corruption -= PurificationAmount;
-            if (Corruption < 0.0) Corruption = 0.0;
+            _Corruption -= PurificationAmount;
+            if (_Corruption < 0.0) _Corruption = 0.0;
             _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate; // Reset growth rate
         }
 
@@ -495,6 +497,12 @@ namespace InfGame
 
             _proceduralLevels = data.ProceduralUpgradeLevels ?? new Dictionary<string, int>();
 
+            _Corruption = data.Corruption;
+            _disabledAutoBuyers.Clear();
+            if (data.DisabledAutoBuyers != null) {
+                foreach (var id in data.DisabledAutoBuyers) _disabledAutoBuyers.Add(id);
+            }
+
             RecalcTap();
             RecalcCps();
         }
@@ -507,7 +515,9 @@ namespace InfGame
                 RebirthPoints = RebirthPoints,
                 GeneratorCounts = new Dictionary<string, int>(_generatorCounts),
                 UpgradesBought = new List<string>(_purchasedUpgrades), // Convert HashSet to List
-                ProceduralUpgradeLevels = new Dictionary<string, int>(_proceduralLevels)
+                ProceduralUpgradeLevels = new Dictionary<string, int>(_proceduralLevels),
+                Corruption = _Corruption,
+                DisabledAutoBuyers = new List<string>(_disabledAutoBuyers)
             };
         }
     }

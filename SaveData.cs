@@ -23,5 +23,7 @@ namespace InfGame
 
         public BigDouble TapValue { get; set; }
         public DateTimeOffset LastSavedUtc { get; set; }
+        public double Corruption { get; set; }
+        public List<string> DisabledAutoBuyers { get; set; } = new();
     }
 }
