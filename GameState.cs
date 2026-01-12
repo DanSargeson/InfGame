@@ -7,6 +7,17 @@ namespace InfGame
 {
     public sealed class GameState
     {
+        // 0.0 = Clean, 1.0 = Fully Corrupted (Stopped)
+        public double Corruption { get; private set; } = 0.0;
+
+        // How fast it decays. 0.0001 per tick means it takes ~16 minutes to reach 10% corruption
+        // You can balance this later or make upgrades lower this number.
+        private double _corruptionRate = 0.00005;
+
+        // The Risk/Reward Calculation
+        public double TimeScale => Math.Max(0.1, 1.0 - Corruption); // Never drop below 10% speed
+        public double CorruptionBonus => 1.0 + (Corruption * 2.0); // At 50% corruption, get 2x Rebirth Points
+
         // Later, you can upgrade this to 20, 30, etc. to speed up the game.
         public double TargetTicksPerSecond { get; private set; } = 10.0;
 
@@ -17,6 +28,10 @@ namespace InfGame
 
         public BigDouble Souls { get; private set; }
         public BigDouble SoulsPerSecond { get; private set; }
+
+        // Add a timer for automation
+        private double _autoBuyTimer = 0.0;
+        private double _autoBuyInterval = 1.0;
 
 
         // Inventory: Key = Generator ID, Value = Count owned
@@ -117,9 +132,68 @@ namespace InfGame
 
 
         public void Tick() {
-            var income = SoulsPerSecond * TickDuration;
+            if (Corruption < 0.9) { // Cap at 90%
+                Corruption += _corruptionRate;
+            }
+
+            var income = (SoulsPerSecond * TimeScale) * TickDuration;
             Souls += income;
             LifetimeSouls += income; // <--- Track it!
+
+            _autoBuyTimer += TickDuration;
+            if (_autoBuyTimer >= _autoBuyInterval) {
+                _autoBuyTimer -= _autoBuyInterval;
+                RunAutoBuyers();
+            }
+        }
+
+        public bool IsAutoBuyerActive(string id) {
+        
+                var def = GameData.GetUpgrade(id);
+                if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
+                    return true;
+                }
+            
+            return false;
+        }
+
+        public void ToggleAutoBuyer(string id) {
+        
+                var def = GameData.GetUpgrade(id);
+                if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
+                    if (HasUpgrade(id)) {
+                        _purchasedUpgrades.Remove(id);
+                    }
+                    else {
+                        _purchasedUpgrades.Add(id);
+                    }
+                }
+        }
+
+        private void RunAutoBuyers() {
+            foreach (var id in _purchasedUpgrades) {
+                var def = GameData.GetUpgrade(id);
+                if (def == null) continue;
+
+                // If this upgrade is an Auto-Buyer...
+                if (def.Type == UpgradeType.AutoBuyGenerator && !string.IsNullOrEmpty(def.TargetId)) {
+
+                    // Try to buy the target generator!
+                    // We use '1' to buy one at a time, or you could make logic to buy Max
+
+                    // NOTE: We duplicate the "Can I afford it?" check here to avoid 
+                    // the overhead of the full TryBuyGenerator function if we are broke.
+                    var cost = GetCost(def.TargetId);
+                    if (Souls >= cost) {
+                        // We reuse your existing method, forcing amount to 1
+                        // You might need to temporarily store the player's BuyAmount preference
+                        int oldBuyAmount = BuyAmount;
+                        BuyAmount = 1;
+                        TryBuyGenerator(def.TargetId);
+                        BuyAmount = oldBuyAmount; // Restore player preference
+                    }
+                }
+            }
         }
 
         // --- New Data-Driven Logic ---
@@ -131,6 +205,8 @@ namespace InfGame
             // Formula: (Lifetime / 1M) ^ (1/3)
             var baseVal = LifetimeSouls / 1000000.0;
             var gain = BigDouble.Pow(baseVal, 1.0 / 3.0);
+
+            gain += CorruptionBonus;
 
             return BigDouble.Floor(gain);
         }
@@ -160,6 +236,8 @@ namespace InfGame
             // 3. Recalculate Logic
             RecalcTap();
             RecalcCps();
+
+            Corruption = 0.0; // Reset Corruption
         }
 
         public int GetCount(string id) {

@@ -12,11 +12,14 @@ namespace InfGame
     {
         GeneratorMultiplier, // Buffs a specific ID (e.g. "T1 x2")
         GlobalMultiplier,    // Buffs everything (e.g. "All Profit x2")
-        TapMultiplier        // Buffs clicking (e.g. "Tap x2")
+        TapMultiplier,        // Buffs clicking (e.g. "Tap x2")
+        AutoBuyGenerator    // Automatically buys generators when you have enough money
     }
 
     public class UpgradeDef
     {
+
+        public bool isToggleable { get; set; } = false;
 
         public CurrencyType CostCurrency { get; set; } = CurrencyType.Souls;
         public string Id { get; set; }

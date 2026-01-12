@@ -118,6 +118,13 @@ namespace InfGame
             var presText = $"Rebirth Pts: {NumberFormat.Compact(_state.RebirthPoints)}";
             var multiText = $"Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}x";
 
+            var corruptionPct = (_state.Corruption * 100).ToString("F1");
+            var speedPct = (_state.TimeScale * 100).ToString("F0");
+            var bonusPct = ((_state.CorruptionBonus - 1.0) * 100).ToString("F0");
+
+            string status = $"Integrity: {speedPct}% (Corruption: {corruptionPct}%)";
+            string bonus = $"Rebirth Bonus: +{bonusPct}%";
+
             _prestigeButton.Draw(_spriteBatch, _font, _pixel);
 
             // Draw Stats
@@ -125,6 +132,9 @@ namespace InfGame
             _spriteBatch.DrawString(_font, cpsText, new Vector2(50, 240), Color.White);
             _spriteBatch.DrawString(_font, presText, new Vector2(50, 280), Color.Gold);
             _spriteBatch.DrawString(_font, multiText, new Vector2(50, 320), Color.Green);
+            // Draw these strings in Red or Purple to look "Corrupted"
+            _spriteBatch.DrawString(_font, status, new Vector2(50, 360), Color.Red);
+            _spriteBatch.DrawString(_font, bonus, new Vector2(50, 400), Color.Plum);
 
             _toggleButton.Draw(_spriteBatch, _font, _pixel);
             _buyMultButton.Draw(_spriteBatch, _font, _pixel);
@@ -302,17 +312,44 @@ namespace InfGame
                 var targetCurrency = (_viewMode == ViewMode.Upgrades) ? CurrencyType.Souls : CurrencyType.RebirthPoints;
 
                 // A. Single Upgrades
+                // A. Single Upgrades & Auto-Buyers
                 foreach (var def in GameData.Upgrades) {
+                    // 1. Filter by Currency (Normal vs Rebirth)
                     if (def.CostCurrency != targetCurrency) continue;
-                    if (_state.HasUpgrade(def.Id)) continue; // Hide if bought
 
+                    // 2. Handle OWNED items
+                    if (_state.HasUpgrade(def.Id)) {
+                        // If it is an Auto-Buyer, we switch to "Toggle Mode"
+                        if (def.Type == UpgradeType.AutoBuyGenerator) {
+                            string status = _state.IsAutoBuyerActive(def.Id) ? "ON" : "OFF";
+                            string t = $"{def.Name} (Auto)\nStatus: {status}";
+
+                            // FIX 1: Fill in the real Rectangle arguments instead of "..."
+                            var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), t, () => {
+                                _state.ToggleAutoBuyer(def.Id);
+                                _needsLayout = true;
+                            });
+
+                            // FIX 2: Add it to the list and increment Y!
+                            btn.Tag = def;
+                            _genButtons.Add(btn);
+                            currentY += btnHeight + pad;
+                        }
+
+                        // If it's a normal owned upgrade, we just skip it (hide it)
+                        continue;
+                    }
+
+                    // 3. Handle UNOWNED items (The "Buy" Button)
                     string id = def.Id;
                     string text = $"{def.Name}\n{def.Description}";
-                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
+
+                    var buyBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
                         if (_state.TryBuyUpgrade(id)) _needsLayout = true;
                     });
-                    btn.Tag = def;
-                    _genButtons.Add(btn);
+
+                    buyBtn.Tag = def;
+                    _genButtons.Add(buyBtn);
                     currentY += btnHeight + pad;
                 }
 

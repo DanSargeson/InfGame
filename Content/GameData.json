@@ -103,6 +103,32 @@
       "CostCurrency": "RebirthPoints",
       "Type": "GlobalMultiplier",
       "Multiplier": 1.5
+    },
+    {
+      "Id": "upg_auto_t1",
+      "Name": "Primal (red) Attunement",
+      "Description": "Align with primal energy and draw red souls automatically",
+      "Cost": {
+        "m": 1.0,
+        "e": 4
+      }, // Costs 10,000
+      "CostCurrency": "Souls",
+      "Type": "AutoBuyGenerator",
+      "TargetId": "gen_t1",
+      "Multiplier": 0.0 // Not used for auto-buyers, but good to keep valid JSON 
+    },
+    {
+      "Id": "upg_auto_t2",
+      "Name": "Vitality Attunement",
+      "Description": "Steadily draw orange souls without clicking",
+      "Cost": {
+        "m": 1.0,
+        "e": 5
+      }, // Costs 100,000
+      "CostCurrency": "Souls",
+      "Type": "AutoBuyGenerator",
+      "TargetId": "gen_t2",
+      "Multiplier": 0.0 // Not used for auto-buyers, but good to keep valid JSON 
     }
   ],
   "UpgradeSeries": [
