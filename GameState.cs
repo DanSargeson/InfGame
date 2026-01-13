@@ -268,8 +268,9 @@ namespace InfGame
             return def.BaseCost * Math.Pow(def.CostMultiplier, count);
         }
 
-        private void PurifyCorruption() {
-            _Corruption -= PurificationAmount;
+        private void PurifyCorruption(int amount) {
+            double reduction = PurificationAmount + (amount * 0.01);
+            _Corruption -= reduction;
             if (_Corruption < 0.0) _Corruption = 0.0;
             _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate; // Reset growth rate
         }
@@ -292,7 +293,7 @@ namespace InfGame
 
             // 3. SPEND: Deduct the TOTAL
 
-            PurifyCorruption();
+            PurifyCorruption(amountToBuy);
             // FIX: Changed 'cost' to 'totalCost'
             Souls -= totalCost;
 
@@ -319,7 +320,6 @@ namespace InfGame
 
             if (def.CostCurrency == CurrencyType.Souls) {
                 if (Souls < def.Cost) return false;
-                PurifyCorruption();
                 Souls -= def.Cost;
             }
             else if (def.CostCurrency == CurrencyType.RebirthPoints) {

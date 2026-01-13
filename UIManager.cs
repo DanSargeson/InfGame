@@ -114,8 +114,10 @@ namespace InfGame
         }
 
         private void DrawHeader(Texture2D _pixel, SpriteBatch _spriteBatch, SpriteFont _font) {
+
+            var currentCps = _state.SoulsPerSecond * _state.TimeScale;
             var soulsText = $"Souls: {NumberFormat.Compact(_state.Souls)}";
-            var cpsText = $"Per Sec: {NumberFormat.Compact(_state.SoulsPerSecond, 2)}";
+            var cpsText = $"Per Sec: {NumberFormat.Compact(currentCps, 2)}";
             var presText = $"Rebirth Pts: {NumberFormat.Compact(_state.RebirthPoints)}";
             var multiText = $"Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}x";
 
@@ -222,6 +224,16 @@ namespace InfGame
                     _buyMultButton.Text = $"BUY: {label}";
                 }
                 else if (btn.Tag is UpgradeDef upgDef) {
+
+                    if (upgDef.Type == UpgradeType.AutoBuyGenerator) {
+                        // Keep the text dynamic!
+                        string status = _state.IsAutoBuyerActive(upgDef.Id) ? "ON" : "OFF";
+                        btn.Text = $"{upgDef.Name} (Auto)\nStatus: {status}";
+
+                        // Auto-buyers are always active if owned (so you can toggle them)
+                        btn.IsActive = true;
+                        return; // Skip the rest of the logic for this button
+                    }
                     string priceLabel = upgDef.CostCurrency == CurrencyType.Souls
                              ? NumberFormat.Compact(upgDef.Cost)
                             : $"{upgDef.Cost.ToDouble()} RP";
@@ -261,7 +273,7 @@ namespace InfGame
             int w = _graphicsDevice.Viewport.Width;
             int h = _graphicsDevice.Viewport.Height;
             int pad = 20;
-            int tapY = 800;
+            int tapY = h / 2;
             int btnHeight = 100;
 
             _itemHeight = btnHeight;
@@ -453,18 +465,38 @@ namespace InfGame
             }
 
 
-            //HERE
+            //Tap anywhere logic
             var touchstate = TouchPanel.GetState();
             foreach (var touch in touchstate) {
 
                 if (touch.State == TouchLocationState.Pressed) {
-                    var p = new Point((int)touch.Position.X, (int)touch.Position.Y);
+                    if (touch.State == TouchLocationState.Pressed) {
+                        var p = new Point((int)touch.Position.X, (int)touch.Position.Y);
 
-                    bool uiHIt = _listBounds.Contains(p) || _prestigeButton.HitTest(p) || _toggleButton.HitTest(p) || _buyMultButton.HitTest(p);
-                    if (!uiHIt) {
-                        // Spawn a particle at this position
-                        _state.Tap();
-                        SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
+                        // 1. Did we hit a specific UI Button?
+                        bool hitButton = false;
+
+                        // Check Header Buttons
+                        if (_prestigeButton.HitTest(p) || _toggleButton.HitTest(p) || _buyMultButton.HitTest(p))
+                            hitButton = true;
+
+                        // Check List Buttons (Manual Calculation)
+                        if (_listBounds.Contains(p)) {
+                            float relativeY = (p.Y - _listStartY) + _scrollY;
+                            int index = (int)(relativeY / (_itemHeight + _itemPadding));
+                            if (index >= 0 && index < _genButtons.Count) {
+                                // We clicked a valid row... but did we hit the button?
+                                // (Since buttons are full width, yes, basically)
+                                hitButton = true;
+                            }
+                        }
+
+                        // 2. If we didn't hit a button, it is a Gameplay Tap!
+                        // (Even if we clicked the empty background of the list)
+                        if (!hitButton) {
+                            _state.Tap();
+                            SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
+                        }
                     }
                 }
             }
