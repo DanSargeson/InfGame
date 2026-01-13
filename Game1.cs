@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input.Touch;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input.Touch;
+using static Android.Provider.Contacts.Intents;
 
 namespace InfGame
 {
@@ -30,6 +31,7 @@ namespace InfGame
         private readonly GameState _state = new();
 
         private UIManager _uiManager;
+        private GameSimulator _sim;
 
         // Layout State
         private string _savePath;
@@ -81,6 +83,11 @@ namespace InfGame
             _savePath = Path.Combine(dir, "infgame_save.json");
             
             _uiManager = new UIManager(_state, _graphics.GraphicsDevice);
+            _sim = new GameSimulator(_state);
+
+            _sim.OnAutoBuyTriggered += (msg) => {
+                _uiManager.SpawnFloatingText(new Vector2(200, 200), msg, Color.Cyan);
+            };
             LoadOrCreateSave();
         }
 
@@ -95,8 +102,8 @@ namespace InfGame
                 _saveTimer = 0;
             }
 
+            _sim.Update(gameTime.ElapsedGameTime.TotalSeconds);
             _uiManager.Update(gameTime);
-            //_state.Tick();
             base.Update(gameTime);
         }
 

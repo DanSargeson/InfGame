@@ -406,7 +406,7 @@ namespace InfGame
             _maxScroll = Math.Max(0, currentY - h + pad);
         }
 
-        private void SpawnFloatingText(Vector2 pos, string text, Color color) {
+        public void SpawnFloatingText(Vector2 pos, string text, Color color) {
             var rnd = new Random();
             float xOffset = rnd.Next(-20, 21);
             _particles.Add(new FloatingText(new Vector2(pos.X + xOffset, pos.Y), text, color));

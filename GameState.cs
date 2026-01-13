@@ -8,11 +8,11 @@ namespace InfGame
     public sealed class GameState
     {
         // 0.0 = Clean, 1.0 = Fully Corrupted (Stopped)
-        public double _Corruption { get; private set; } = 0.0;
+        public double _Corruption { get; set; } = 0.0;
 
-        private double _CurrentCorruptionGrowth = 0.0;
-        private double _BaseCorruptionGrowthRate = 0.001;   //
-        private double _CorruptionGrowthAccleration = 0.0001; // Growth rate increases over time
+        public double _CurrentCorruptionGrowth = 0.0;
+        public double _BaseCorruptionGrowthRate = 0.001;   //
+        public double _CorruptionGrowthAccleration = 0.0001; // Growth rate increases over time
 
 
 
@@ -38,8 +38,8 @@ namespace InfGame
 
         private Dictionary<string, int> _proceduralLevels = new();
 
-        public BigDouble Souls { get; private set; }
-        public BigDouble SoulsPerSecond { get; private set; }
+        public BigDouble Souls { get; set; }
+        public BigDouble SoulsPerSecond { get; set; }
 
         // Add a timer for automation
         private double _autoBuyTimer = 0.0;
@@ -52,12 +52,12 @@ namespace InfGame
         // 1 (x1), 10 (x10), 100 (x100), -1 (Max)
         public int BuyAmount { get; set; } = 1;
 
-        private HashSet<string> _purchasedUpgrades = new();
+        public HashSet<string> _purchasedUpgrades = new();
         public BigDouble TapValue { get; private set; } = new BigDouble(1.0);
         public DateTimeOffset LastSavedUtc { get; private set; } = DateTimeOffset.UtcNow;
 
-        public BigDouble LifetimeSouls { get; private set; }
-        public BigDouble RebirthPoints { get; private set; }
+        public BigDouble LifetimeSouls { get; set; }
+        public BigDouble RebirthPoints { get; set; }
         public double RebirthBonusPercent => 0.10;
 
         public BigDouble prestigeMult;
@@ -157,7 +157,7 @@ namespace InfGame
             _autoBuyTimer += TickDuration;
             if (_autoBuyTimer >= _autoBuyInterval) {
                 _autoBuyTimer -= _autoBuyInterval;
-                RunAutoBuyers();
+               // RunAutoBuyers();
             }
         }
 
@@ -178,36 +178,6 @@ namespace InfGame
                 _disabledAutoBuyers.Remove(id);
             else
                 _disabledAutoBuyers.Add(id);
-
-            //var def = GameData.GetUpgrade(id);
-            //if (def != null && def.Type == UpgradeType.AutoBuyGenerator) {
-            //    if (HasUpgrade(id)) {
-            //        _purchasedUpgrades.Remove(id);
-            //    }
-            //    else {
-            //        _purchasedUpgrades.Add(id);
-            //    }
-            //}
-        }
-
-        private void RunAutoBuyers() {
-
-            int oldBuyAmount = BuyAmount;
-
-            BuyAmount = 1; // Force to 1 for auto-buyers
-
-            foreach (var id in _purchasedUpgrades) {
-                var def = GameData.GetUpgrade(id);
-                if (def == null) continue;
-
-                // If this upgrade is an Auto-Buyer...
-                if (def.Type == UpgradeType.AutoBuyGenerator && !string.IsNullOrEmpty(def.TargetId)) {
-                    
-                    if(!IsAutoBuyerActive(id)) continue; // Skip if disabled
-                    TryBuyGenerator(def.TargetId);
-                }
-            }
-            BuyAmount = oldBuyAmount; // Restore player preference
         }
 
         // --- New Data-Driven Logic ---
