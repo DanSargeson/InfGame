@@ -204,6 +204,7 @@ namespace InfGame
             foreach (var btn in _genButtons) {
                 btn.Update(dt);
 
+                // CASE 1: Generators
                 if (btn.Tag is GeneratorDef genDef) {
                     int amount = _state.BuyAmount;
                     string prefix = $"x{amount}";
@@ -223,19 +224,23 @@ namespace InfGame
                     string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
                     _buyMultButton.Text = $"BUY: {label}";
                 }
+                // CASE 2: Upgrades & Auto-Buyers
                 else if (btn.Tag is UpgradeDef upgDef) {
 
+                    // --- FIX START: Handle Auto-Buyers Separately ---
                     if (upgDef.Type == UpgradeType.AutoBuyGenerator) {
-                        // Keep the text dynamic!
-                        string status = _state.IsAutoBuyerActive(upgDef.Id) ? "ON" : "OFF";
-                        btn.Text = $"{upgDef.Name} (Auto)\nStatus: {status}";
-
-                        // Auto-buyers are always active if owned (so you can toggle them)
-                        btn.IsActive = true;
-                        return; // Skip the rest of the logic for this button
+                        // If we own it, it's a Toggle, not a "Bought" label
+                        if (_state.HasUpgrade(upgDef.Id)) {
+                            string status = _state.IsAutoBuyerActive(upgDef.Id) ? "ON" : "OFF";
+                            btn.Text = $"{upgDef.Name} (Auto)\nStatus: {status}";
+                            btn.IsActive = true; // Always clickable so we can toggle it!
+                            continue; // Skip the standard logic below
+                        }
                     }
+                    // --- FIX END ---
+
                     string priceLabel = upgDef.CostCurrency == CurrencyType.Souls
-                             ? NumberFormat.Compact(upgDef.Cost)
+                                ? NumberFormat.Compact(upgDef.Cost)
                             : $"{upgDef.Cost.ToDouble()} RP";
 
                     btn.Text = $"{upgDef.Name}\n{priceLabel}";
@@ -247,13 +252,16 @@ namespace InfGame
                         canAfford = _state.RebirthPoints >= upgDef.Cost;
 
                     bool isOwned = _state.HasUpgrade(upgDef.Id);
+
+                    // Standard upgrades become inactive/gray when bought
                     btn.IsActive = !isOwned && canAfford;
+
                     if (isOwned) btn.Text = "BOUGHT";
                 }
+                // CASE 3: Infinite Series
                 else if (btn.Tag is UpgradeSeriesDef series) {
-                    int lvl = _state.GetProceduralLevel(series.Id);
+                    // (Your existing series logic is fine)
                     var cost = _state.GetProceduralCost(series.Id);
-
                     if (series.CostCurrency == CurrencyType.Souls)
                         btn.IsActive = _state.Souls >= cost;
                     else

@@ -202,9 +202,9 @@ namespace InfGame
 
                 // If this upgrade is an Auto-Buyer...
                 if (def.Type == UpgradeType.AutoBuyGenerator && !string.IsNullOrEmpty(def.TargetId)) {
-                        
-                        TryBuyGenerator(def.TargetId);
                     
+                    if(!IsAutoBuyerActive(id)) continue; // Skip if disabled
+                    TryBuyGenerator(def.TargetId);
                 }
             }
             BuyAmount = oldBuyAmount; // Restore player preference
