@@ -33,14 +33,14 @@ namespace InfGame
 
         // UI Components
         private ViewMode _viewMode = ViewMode.Generators;
-        private UiButton _toggleButton;
-        private UiButton _buyMultButton;
 
-        // REMOVED: private UiButton _prestigeShop; // We don't need this anymore
+        // REPLACED: _toggleButton with a List
+        private List<UiButton> _navButtons = new();
+        private UiButton _buyMultButton;
+        private UiButton _prestigeButton;
 
         private List<UiButton> _genButtons = new();
         private Stack<UiButton> _buttonPool = new Stack<UiButton>();
-        private UiButton _prestigeButton;
 
         private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
@@ -78,10 +78,13 @@ namespace InfGame
                 _accumulator -= tickRate;
             }
 
-            // --- FIX: Update all standalone buttons so they flash correctly ---
+            // Update Standalone Buttons
             _prestigeButton?.Update(dt);
-            _toggleButton?.Update(dt);
             _buyMultButton?.Update(dt);
+            _collectButton?.Update(dt); // Ensure collection button animates
+
+            // Update Nav Buttons
+            foreach (var btn in _navButtons) btn.Update(dt);
 
             // Update List Buttons
             UpdateGeneratorButtons(dt);
@@ -96,7 +99,7 @@ namespace InfGame
             // Logic for Prestige Button Text
             var potentialGain = _state.CalculateRebirthGain();
             if (potentialGain > 0) {
-                _prestigeButton.Text = $"REBIRTH: +{NumberFormat.Compact(potentialGain)} POINTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
+                _prestigeButton.Text = $"REBIRTH: +{NumberFormat.Compact(potentialGain)} PTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
                 _prestigeButton.IsActive = true;
             }
             else {
@@ -114,15 +117,15 @@ namespace InfGame
         }
 
         private void DrawHeader(Texture2D _pixel, SpriteBatch _spriteBatch, SpriteFont _font) {
-
             var currentCps = _state.SoulsPerSecond * _state.TimeScale;
             var soulsText = $"Souls: {NumberFormat.Compact(_state.Souls)}";
             var cpsText = $"Per Sec: {NumberFormat.Compact(currentCps, 2)}";
             var presText = $"Rebirth Pts: {NumberFormat.Compact(_state.RebirthPoints)}";
             var multiText = $"Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}x";
 
-            var corruptionPct = (_state._Corruption * 100).ToString("F1");
-            var speedPct = (_state.TimeScale * 100).ToString("F1");
+            // Corruption Text
+            var corruptionPct = (_state._Corruption * 100).ToString("F0"); // Fixed access to Property
+            var speedPct = (_state.TimeScale * 100).ToString("F0");
             var bonusPct = ((_state.CorruptionBonus - 1.0) * 100).ToString("F0");
 
             string status = $"Integrity: {speedPct}% (Corruption: {corruptionPct}%)";
@@ -136,18 +139,19 @@ namespace InfGame
             _spriteBatch.DrawString(_font, presText, new Vector2(50, 280), Color.Gold);
             _spriteBatch.DrawString(_font, multiText, new Vector2(50, 320), Color.Green);
 
-
+            // Corruption Colors
             Color colour = Color.White;
             if (_state._Corruption > 0.5) colour = Color.Yellow;
             if (_state._Corruption > 0.65) colour = Color.Orange;
             if (_state._Corruption > 0.80) colour = Color.OrangeRed;
             if (_state._Corruption > 0.90) colour = Color.Red;
 
-            // Draw these strings in Red or Purple to look "Corrupted"
             _spriteBatch.DrawString(_font, status, new Vector2(50, 360), colour);
             _spriteBatch.DrawString(_font, bonus, new Vector2(50, 400), Color.Plum);
 
-            _toggleButton.Draw(_spriteBatch, _font, _pixel);
+            // Draw Nav Buttons
+            foreach (var btn in _navButtons) btn.Draw(_spriteBatch, _font, _pixel);
+
             _buyMultButton.Draw(_spriteBatch, _font, _pixel);
         }
 
@@ -169,27 +173,18 @@ namespace InfGame
 
             if (_showWelcomeModal) {
                 _spriteBatch.Begin();
-
                 var w = _graphicsDevice.Viewport.Width;
                 var h = _graphicsDevice.Viewport.Height;
 
-                // A. Dim Background (Full Screen)
-                // Uses your existing 1x1 pixel stretched to screen size with alpha
                 _spriteBatch.Draw(_pixel, new Rectangle(0, 0, w, h), Color.Black * 0.65f);
-
-                // B. Modal Box (Center)
                 var boxRect = new Rectangle(w / 2 - 200, h / 2 - 150, 400, 350);
                 _spriteBatch.Draw(_pixel, boxRect, Color.DarkSlateGray);
 
-                // C. Text
-                // Helper to center text
                 DrawCenteredString("WELCOME BACK!", h / 2 - 80, Color.Gold, _font, _spriteBatch);
                 DrawCenteredString(_offlineTimeText, h / 2 - 40, Color.White, _font, _spriteBatch);
                 DrawCenteredString($"+{NumberFormat.Compact(_offlineEarnings)}", h / 2, Color.LimeGreen, _font, _spriteBatch);
 
-                // D. Button
                 _collectButton.Draw(_spriteBatch, _font, _pixel);
-
                 _spriteBatch.End();
             }
         }
@@ -204,11 +199,9 @@ namespace InfGame
             foreach (var btn in _genButtons) {
                 btn.Update(dt);
 
-                // CASE 1: Generators
                 if (btn.Tag is GeneratorDef genDef) {
                     int amount = _state.BuyAmount;
                     string prefix = $"x{amount}";
-
                     if (amount == -1) {
                         amount = _state.GetMaxBuyable(genDef.Id);
                         if (amount == 0) { amount = 1; prefix = "Max"; }
@@ -224,55 +217,45 @@ namespace InfGame
                     string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
                     _buyMultButton.Text = $"BUY: {label}";
                 }
-                // CASE 2: Upgrades & Auto-Buyers
                 else if (btn.Tag is UpgradeDef upgDef) {
-
-                    // --- FIX START: Handle Auto-Buyers Separately ---
+                    // Handle Auto-Buyers
                     if (upgDef.Type == UpgradeType.AutoBuyGenerator) {
-                        // If we own it, it's a Toggle, not a "Bought" label
                         if (_state.HasUpgrade(upgDef.Id)) {
                             string status = _state.IsAutoBuyerActive(upgDef.Id) ? "ON" : "OFF";
                             btn.Text = $"{upgDef.Name} (Auto)\nStatus: {status}";
-                            btn.IsActive = true; // Always clickable so we can toggle it!
-                            continue; // Skip the standard logic below
+                            btn.IsActive = true;
+                            continue;
                         }
                     }
-                    // --- FIX END ---
 
                     string priceLabel = upgDef.CostCurrency == CurrencyType.Souls
-                                ? NumberFormat.Compact(upgDef.Cost)
-                            : $"{upgDef.Cost.ToDouble()} RP";
+                        ? NumberFormat.Compact(upgDef.Cost)
+                        : $"{upgDef.Cost.ToDouble()} RP";
 
                     btn.Text = $"{upgDef.Name}\n{priceLabel}";
 
-                    bool canAfford = false;
-                    if (upgDef.CostCurrency == CurrencyType.Souls)
-                        canAfford = _state.Souls >= upgDef.Cost;
-                    else
-                        canAfford = _state.RebirthPoints >= upgDef.Cost;
+                    bool canAfford = (upgDef.CostCurrency == CurrencyType.Souls)
+                        ? _state.Souls >= upgDef.Cost
+                        : _state.RebirthPoints >= upgDef.Cost;
 
                     bool isOwned = _state.HasUpgrade(upgDef.Id);
-
-                    // Standard upgrades become inactive/gray when bought
                     btn.IsActive = !isOwned && canAfford;
-
                     if (isOwned) btn.Text = "BOUGHT";
                 }
-                // CASE 3: Infinite Series
                 else if (btn.Tag is UpgradeSeriesDef series) {
-                    // (Your existing series logic is fine)
                     var cost = _state.GetProceduralCost(series.Id);
-                    if (series.CostCurrency == CurrencyType.Souls)
-                        btn.IsActive = _state.Souls >= cost;
-                    else
-                        btn.IsActive = _state.RebirthPoints >= cost;
+                    bool canAfford = (series.CostCurrency == CurrencyType.Souls)
+                        ? _state.Souls >= cost
+                        : _state.RebirthPoints >= cost;
+                    btn.IsActive = canAfford;
                 }
             }
         }
 
         private void LayoutUI() {
-            // ... (Pooling and Setup code remains the same) ...
-            ReturnToPool(_toggleButton);
+            // Cleanup
+            foreach (var btn in _navButtons) ReturnToPool(btn);
+            _navButtons.Clear();
             ReturnToPool(_prestigeButton);
             ReturnToPool(_buyMultButton);
             foreach (var btn in _genButtons) ReturnToPool(btn);
@@ -281,21 +264,34 @@ namespace InfGame
             int w = _graphicsDevice.Viewport.Width;
             int h = _graphicsDevice.Viewport.Height;
             int pad = 20;
-            int tapY = h / 2;
-            int btnHeight = 100;
+            int navY = h / 2; // Place nav bar where Toggle used to be
+            int navHeight = 80;
 
-            _itemHeight = btnHeight;
-            _itemPadding = pad;
+            // --- 1. NAVIGATION BAR ---
+            string[] navNames = { "GEN", "UPG", "AUTO", "SHOP", "SET" };
+            ViewMode[] navModes = { ViewMode.Generators, ViewMode.Upgrades, ViewMode.AutoBuyers, ViewMode.RebirthShop, ViewMode.Settings };
+            int navWidth = (w - (pad * 6)) / 5;
 
-            // ... (Button Creation for Rebirth, BuyMult, Toggle remains the same) ...
+            for (int i = 0; i < 5; i++) {
+                int index = i;
+                int x = pad + (i * (navWidth + pad));
+                var mode = navModes[i];
+                string label = navNames[i];
+                if (_viewMode == mode) label = $"[{label}]";
 
-            // 1. Rebirth Button
+                var btn = GetPooledButton(new Rectangle(x, navY, navWidth, navHeight), label, () => {
+                    _viewMode = mode;
+                    _needsLayout = true;
+                });
+                _navButtons.Add(btn);
+            }
+
+            // --- 2. HEADER BUTTONS ---
             _prestigeButton = GetPooledButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
                 _state.DoRebirth();
                 _needsLayout = true;
             });
 
-            // 2. Buy Multiplier Button
             _buyMultButton = GetPooledButton(new Rectangle(pad + w / 2 + pad, 250, w / 2, 60), "BUY: 1x", () => {
                 if (_state.BuyAmount == 1) _state.BuyAmount = 10;
                 else if (_state.BuyAmount == 10) _state.BuyAmount = 100;
@@ -304,28 +300,16 @@ namespace InfGame
                 _needsLayout = true;
             });
 
-            // 3. View Toggle Button
-            _toggleButton = GetPooledButton(new Rectangle(pad, tapY, w - pad * 2, btnHeight), "", () => {
-                if (_viewMode == ViewMode.Generators) _viewMode = ViewMode.Upgrades;
-                else if (_viewMode == ViewMode.Upgrades) _viewMode = ViewMode.RebirthShop;
-                else _viewMode = ViewMode.Generators;
-                _needsLayout = true;
-            });
-
-            // Set Toggle Text
-            string viewName = "GENERATORS";
-            if (_viewMode == ViewMode.Upgrades) viewName = "UPGRADES";
-            if (_viewMode == ViewMode.RebirthShop) viewName = "REBIRTH SHOP";
-            _toggleButton.Text = $"VIEW: {viewName}";
-
-            // 4. Generate List Content
-            int listStartY = tapY + btnHeight + pad;
+            // --- 3. GENERATE LIST ---
+            int btnHeight = 100;
+            _itemHeight = btnHeight;
+            _itemPadding = pad;
+            int listStartY = navY + navHeight + pad;
             _listStartY = listStartY;
             _listBounds = new Rectangle(0, listStartY, w, h - listStartY);
             int currentY = listStartY;
 
             if (_viewMode == ViewMode.Generators) {
-                // --- Generators ---
                 foreach (var def in GameData.Generators) {
                     string id = def.Id;
                     var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), def.Name, () => _state.TryBuyGenerator(id));
@@ -334,76 +318,92 @@ namespace InfGame
                     currentY += btnHeight + pad;
                 }
             }
-            else {
-                // --- Upgrades (Both Normal & Shop) ---
-                var targetCurrency = (_viewMode == ViewMode.Upgrades) ? CurrencyType.Souls : CurrencyType.RebirthPoints;
+            else if (_viewMode == ViewMode.Settings) {
+                // HARD RESET BUTTON
+                var resetBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), "HARD RESET (Wipe Save)", () => {
+                    // _state.HardReset(); // Implement this in GameState!
+                    // For now, just a placeholder action
+                    System.Diagnostics.Debug.WriteLine("Hard Reset Clicked");
+                });
+                _genButtons.Add(resetBtn);
+                currentY += btnHeight + pad;
 
-                // A. Single Upgrades & Auto-Buyers
+                // EXPORT BUTTON
+                var exportBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), "EXPORT SAVE (Log to Debug)", () => {
+                    // System.Diagnostics.Debug.WriteLine(_state.GetSaveString());
+                });
+                _genButtons.Add(exportBtn);
+            }
+            else {
+                // Determine view logic (Upgrades, Auto, or Shop)
+                var targetCurrency = (_viewMode == ViewMode.RebirthShop) ? CurrencyType.RebirthPoints : CurrencyType.Souls;
+                bool showAutoBuyers = (_viewMode == ViewMode.AutoBuyers);
+                bool showUpgrades = (_viewMode == ViewMode.Upgrades);
+
+                // A. Single Upgrades & Auto-Buyers Loop
                 foreach (var def in GameData.Upgrades) {
-                    if (def.CostCurrency != targetCurrency) continue;
+                    // Filter: Currency
+                    if (_viewMode == ViewMode.RebirthShop && def.CostCurrency != CurrencyType.RebirthPoints) continue;
+                    if ((showUpgrades || showAutoBuyers) && def.CostCurrency != CurrencyType.Souls) continue;
+
+                    // Filter: AutoBuyer vs Normal Upgrade
+                    bool isAutoBuyer = (def.Type == UpgradeType.AutoBuyGenerator);
+                    if (showAutoBuyers && !isAutoBuyer) continue; // Auto tab only shows auto
+                    if (showUpgrades && isAutoBuyer) continue;    // Upgrade tab hides auto
 
                     // 1. Handle OWNED items
                     if (_state.HasUpgrade(def.Id)) {
-                        // If it is an Auto-Buyer, we switch to "Toggle Mode"
-                        if (def.Type == UpgradeType.AutoBuyGenerator) {
+                        if (isAutoBuyer) {
                             string status = _state.IsAutoBuyerActive(def.Id) ? "ON" : "OFF";
                             string t = $"{def.Name} (Auto)\nStatus: {status}";
-
                             var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), t, () => {
                                 _state.ToggleAutoBuyer(def.Id);
                                 _needsLayout = true;
                             });
-
                             btn.Tag = def;
                             _genButtons.Add(btn);
                             currentY += btnHeight + pad;
                         }
-
-                        // CRITICAL FIX: If we own it, we stop here for this item.
-                        // We do NOT want to fall through and draw a "Buy" button below.
-                        continue;
+                        continue; // Skip owned normal upgrades
                     }
 
-                    // 2. Handle UNOWNED items (The "Buy" Button)
-                    // This is now outside the 'if (HasUpgrade)' block, so it actually runs!
+                    // 2. Handle UNOWNED items
                     string id = def.Id;
                     string text = $"{def.Name}\n{def.Description}";
-
                     var buyBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
                         if (_state.TryBuyUpgrade(id)) _needsLayout = true;
                     });
-
                     buyBtn.Tag = def;
                     _genButtons.Add(buyBtn);
                     currentY += btnHeight + pad;
                 }
-                // CRITICAL FIX: The loop for Upgrades ends HERE. 
-                // The Series loop must be OUTSIDE of it.
 
-                // B. Infinite Series Upgrades
-                foreach (var series in GameData.UpgradeSeries) {
-                    if (series.CostCurrency != targetCurrency) continue;
+                // B. Infinite Series Upgrades (Only in Upgrades or Shop)
+                if (!showAutoBuyers) {
+                    foreach (var series in GameData.UpgradeSeries) {
+                        if (series.CostCurrency != targetCurrency) continue;
 
-                    string id = series.Id;
-                    int currentLevel = _state.GetProceduralLevel(id);
-                    int nextLevel = currentLevel + 1;
-                    var cost = _state.GetProceduralCost(id);
+                        string id = series.Id;
+                        int currentLevel = _state.GetProceduralLevel(id);
+                        int nextLevel = currentLevel + 1;
+                        var cost = _state.GetProceduralCost(id);
 
-                    string name = string.Format(series.NameFormat, nextLevel);
-                    string desc = $"(x{series.MultiplierPerLevel} effect)";
-                    string price = series.CostCurrency == CurrencyType.Souls ? NumberFormat.Compact(cost) : $"{cost} RP";
+                        string name = string.Format(series.NameFormat, nextLevel);
+                        string desc = $"(x{series.MultiplierPerLevel} effect)";
+                        string price = series.CostCurrency == CurrencyType.Souls ? NumberFormat.Compact(cost) : $"{cost} RP";
 
-                    string text = $"{name} - {desc}\n{price}";
-                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
-                        if (_state.TryBuyProceduralUpgrade(id)) _needsLayout = true;
-                    });
-                    btn.Tag = series;
-                    _genButtons.Add(btn);
-                    currentY += btnHeight + pad;
+                        string text = $"{name} - {desc}\n{price}";
+                        var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
+                            if (_state.TryBuyProceduralUpgrade(id)) _needsLayout = true;
+                        });
+                        btn.Tag = series;
+                        _genButtons.Add(btn);
+                        currentY += btnHeight + pad;
+                    }
                 }
-
-                _maxScroll = Math.Max(0, currentY - h + pad);
             }
+
+            _maxScroll = Math.Max(0, currentY - h + pad);
         }
 
         private void SpawnFloatingText(Vector2 pos, string text, Color color) {
@@ -419,37 +419,36 @@ namespace InfGame
                 if (_showWelcomeModal) {
                     if (g.GestureType == GestureType.Tap) {
                         var p = new Point((int)g.Position.X, (int)g.Position.Y);
-                        // Only allow clicking the Collect button
                         if (_collectButton != null && _collectButton.HitTest(p)) {
                             _collectButton.TriggerFlash();
                             _collectButton.OnClick?.Invoke();
                         }
                     }
-                    continue; // SKIP everything else
+                    continue;
                 }
 
                 if (g.GestureType == GestureType.Tap) {
                     var p = new Point((int)g.Position.X, (int)g.Position.Y);
-                    //bool uiHit = false;
 
                     // Check Header Buttons
-                    if (_toggleButton.HitTest(p)) {
-                        _toggleButton.TriggerFlash();
-                        _toggleButton.OnClick?.Invoke();
-                        // uiHit = true;
-                    }
-                    else if (_prestigeButton.HitTest(p)) {
+                    if (_prestigeButton.HitTest(p)) {
                         _prestigeButton.TriggerFlash();
                         _prestigeButton.OnClick?.Invoke();
-                        //uiHit = true;
                     }
                     else if (_buyMultButton.HitTest(p)) {
                         _buyMultButton.TriggerFlash();
                         _buyMultButton.OnClick?.Invoke();
-                        //uiHit = true;
                     }
+                    // Check Nav Buttons
+                    foreach (var btn in _navButtons) {
+                        if (btn.HitTest(p)) {
+                            btn.TriggerFlash();
+                            btn.OnClick?.Invoke();
+                        }
+                    }
+
                     // Check Scroll List
-                    else if (_listBounds.Contains(p)) {
+                    if (_listBounds.Contains(p)) {
                         float relativeY = (p.Y - _listStartY) + _scrollY;
                         int totalItemHeight = _itemHeight + _itemPadding;
                         int index = (int)(relativeY / totalItemHeight);
@@ -460,7 +459,6 @@ namespace InfGame
                             if (btn.HitTest(scrollPoint)) {
                                 btn.TriggerFlash();
                                 btn.OnClick?.Invoke();
-                                //      uiHit = true;
                             }
                         }
                     }
@@ -472,39 +470,29 @@ namespace InfGame
                 }
             }
 
-
-            //Tap anywhere logic
+            // Raw Tap Logic (Gameplay)
             var touchstate = TouchPanel.GetState();
             foreach (var touch in touchstate) {
-
                 if (touch.State == TouchLocationState.Pressed) {
-                    if (touch.State == TouchLocationState.Pressed) {
-                        var p = new Point((int)touch.Position.X, (int)touch.Position.Y);
+                    var p = new Point((int)touch.Position.X, (int)touch.Position.Y);
 
-                        // 1. Did we hit a specific UI Button?
-                        bool hitButton = false;
+                    if (_showWelcomeModal) continue; // Don't tap through modal
 
-                        // Check Header Buttons
-                        if (_prestigeButton.HitTest(p) || _toggleButton.HitTest(p) || _buyMultButton.HitTest(p))
-                            hitButton = true;
+                    // 1. Did we hit a specific UI Button?
+                    bool hitButton = false;
+                    if (_prestigeButton.HitTest(p) || _buyMultButton.HitTest(p)) hitButton = true;
+                    foreach (var btn in _navButtons) if (btn.HitTest(p)) hitButton = true;
 
-                        // Check List Buttons (Manual Calculation)
-                        if (_listBounds.Contains(p)) {
-                            float relativeY = (p.Y - _listStartY) + _scrollY;
-                            int index = (int)(relativeY / (_itemHeight + _itemPadding));
-                            if (index >= 0 && index < _genButtons.Count) {
-                                // We clicked a valid row... but did we hit the button?
-                                // (Since buttons are full width, yes, basically)
-                                hitButton = true;
-                            }
-                        }
+                    if (_listBounds.Contains(p)) {
+                        float relativeY = (p.Y - _listStartY) + _scrollY;
+                        int index = (int)(relativeY / (_itemHeight + _itemPadding));
+                        if (index >= 0 && index < _genButtons.Count) hitButton = true;
+                    }
 
-                        // 2. If we didn't hit a button, it is a Gameplay Tap!
-                        // (Even if we clicked the empty background of the list)
-                        if (!hitButton) {
-                            _state.Tap();
-                            SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
-                        }
+                    // 2. Gameplay Tap
+                    if (!hitButton) {
+                        _state.Tap();
+                        SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
                     }
                 }
             }
