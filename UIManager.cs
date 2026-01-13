@@ -29,6 +29,7 @@ namespace InfGame
         private bool _needsLayout = true;
 
         private GameState _state;
+        private GameSimulator _sim;
         private readonly GraphicsDevice _graphicsDevice;
 
         // UI Components
@@ -44,8 +45,9 @@ namespace InfGame
 
         private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
-        public UIManager(GameState state, GraphicsDevice graphicsDevice) {
+        public UIManager(GameState state, GameSimulator sim, GraphicsDevice graphicsDevice) {
             _state = state;
+            _sim = sim;
             _needsLayout = true;
             _graphicsDevice = graphicsDevice;
         }
@@ -70,13 +72,13 @@ namespace InfGame
             var dt = gameTime.ElapsedGameTime.TotalSeconds;
             _accumulator += dt;
 
-            var tickRate = _state.TickDuration;
-            if (_accumulator > 1.0) _accumulator = 1.0;
+            //var tickRate = _state.TickDuration;
+            //if (_accumulator > 1.0) _accumulator = 1.0;
 
-            while (_accumulator >= tickRate) {
-                _state.Tick();
-                _accumulator -= tickRate;
-            }
+            //while (_accumulator >= tickRate) {
+            //    _sim.Tick();
+            //    _accumulator -= tickRate;
+            //}
 
             // Update Standalone Buttons
             _prestigeButton?.Update(dt);
@@ -97,7 +99,7 @@ namespace InfGame
             HandleInput();
 
             // Logic for Prestige Button Text
-            var potentialGain = _state.CalculateRebirthGain();
+            var potentialGain = _sim.CalculateRebirthGain();
             if (potentialGain > 0) {
                 _prestigeButton.Text = $"REBIRTH: +{NumberFormat.Compact(potentialGain)} PTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
                 _prestigeButton.IsActive = true;
@@ -124,8 +126,8 @@ namespace InfGame
             var multiText = $"Multiplier: {NumberFormat.Compact(_state.prestigeMult, 2)}x";
 
             // Corruption Text
-            var corruptionPct = (_state._Corruption * 100).ToString("F0"); // Fixed access to Property
-            var speedPct = (_state.TimeScale * 100).ToString("F0");
+            var corruptionPct = (_state.Corruption * 100).ToString("F1"); // Fixed access to Property
+            var speedPct = (_state.TimeScale * 100).ToString("F1");
             var bonusPct = ((_state.CorruptionBonus - 1.0) * 100).ToString("F0");
 
             string status = $"Integrity: {speedPct}% (Corruption: {corruptionPct}%)";
@@ -141,10 +143,10 @@ namespace InfGame
 
             // Corruption Colors
             Color colour = Color.White;
-            if (_state._Corruption > 0.5) colour = Color.Yellow;
-            if (_state._Corruption > 0.65) colour = Color.Orange;
-            if (_state._Corruption > 0.80) colour = Color.OrangeRed;
-            if (_state._Corruption > 0.90) colour = Color.Red;
+            if (_state.Corruption > 0.5) colour = Color.Yellow;
+            if (_state.Corruption > 0.65) colour = Color.Orange;
+            if (_state.Corruption > 0.80) colour = Color.OrangeRed;
+            if (_state.Corruption > 0.90) colour = Color.Red;
 
             _spriteBatch.DrawString(_font, status, new Vector2(50, 360), colour);
             _spriteBatch.DrawString(_font, bonus, new Vector2(50, 400), Color.Plum);
@@ -184,7 +186,10 @@ namespace InfGame
                 DrawCenteredString(_offlineTimeText, h / 2 - 40, Color.White, _font, _spriteBatch);
                 DrawCenteredString($"+{NumberFormat.Compact(_offlineEarnings)}", h / 2, Color.LimeGreen, _font, _spriteBatch);
 
-                _collectButton.Draw(_spriteBatch, _font, _pixel);
+                if(_collectButton != null) {
+
+                    _collectButton.Draw(_spriteBatch, _font, _pixel);
+                }
                 _spriteBatch.End();
             }
         }
@@ -203,12 +208,12 @@ namespace InfGame
                     int amount = _state.BuyAmount;
                     string prefix = $"x{amount}";
                     if (amount == -1) {
-                        amount = _state.GetMaxBuyable(genDef.Id);
+                        amount = _sim.GetMaxBuyable(genDef.Id);
                         if (amount == 0) { amount = 1; prefix = "Max"; }
                         else { prefix = $"x{amount}"; }
                     }
 
-                    var totalCost = _state.GetBulkCost(genDef.Id, amount);
+                    var totalCost = _sim.GetBulkCost(genDef.Id, amount);
                     var currentCount = _state.GetCount(genDef.Id);
 
                     btn.Text = $"{genDef.Name} ({currentCount})\n{prefix}: {NumberFormat.Compact(totalCost)}";
@@ -243,7 +248,7 @@ namespace InfGame
                     if (isOwned) btn.Text = "BOUGHT";
                 }
                 else if (btn.Tag is UpgradeSeriesDef series) {
-                    var cost = _state.GetProceduralCost(series.Id);
+                    var cost = _sim.GetProceduralCost(series.Id);
                     bool canAfford = (series.CostCurrency == CurrencyType.Souls)
                         ? _state.Souls >= cost
                         : _state.RebirthPoints >= cost;
@@ -267,6 +272,20 @@ namespace InfGame
             int navY = h / 2; // Place nav bar where Toggle used to be
             int navHeight = 80;
 
+
+            int modalCenterY = h / 2;
+            int btnW = 200;
+            int btnH = 60;
+
+            _collectButton = GetPooledButton(
+                new Rectangle(w / 2 - btnW / 2, modalCenterY + 80, btnW, btnH),
+                "COLLECT",
+                () => {
+                    _showWelcomeModal = false; // Close modal
+                                               // You might want to trigger a save here just in case
+                }
+            );
+
             // --- 1. NAVIGATION BAR ---
             string[] navNames = { "GEN", "UPG", "AUTO", "SHOP", "SET" };
             ViewMode[] navModes = { ViewMode.Generators, ViewMode.Upgrades, ViewMode.AutoBuyers, ViewMode.RebirthShop, ViewMode.Settings };
@@ -288,7 +307,7 @@ namespace InfGame
 
             // --- 2. HEADER BUTTONS ---
             _prestigeButton = GetPooledButton(new Rectangle(pad, 100, w - pad * 2, 100), "", () => {
-                _state.DoRebirth();
+                _sim.DoRebirth();
                 _needsLayout = true;
             });
 
@@ -312,7 +331,7 @@ namespace InfGame
             if (_viewMode == ViewMode.Generators) {
                 foreach (var def in GameData.Generators) {
                     string id = def.Id;
-                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), def.Name, () => _state.TryBuyGenerator(id));
+                    var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), def.Name, () => _sim.TryBuyGenerator(id));
                     btn.Tag = def;
                     _genButtons.Add(btn);
                     currentY += btnHeight + pad;
@@ -371,7 +390,7 @@ namespace InfGame
                     string id = def.Id;
                     string text = $"{def.Name}\n{def.Description}";
                     var buyBtn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
-                        if (_state.TryBuyUpgrade(id)) _needsLayout = true;
+                        if (_sim.TryBuyUpgrade(id)) _needsLayout = true;
                     });
                     buyBtn.Tag = def;
                     _genButtons.Add(buyBtn);
@@ -384,9 +403,9 @@ namespace InfGame
                         if (series.CostCurrency != targetCurrency) continue;
 
                         string id = series.Id;
-                        int currentLevel = _state.GetProceduralLevel(id);
+                        int currentLevel = _sim.GetProceduralLevel(id);
                         int nextLevel = currentLevel + 1;
-                        var cost = _state.GetProceduralCost(id);
+                        var cost = _sim.GetProceduralCost(id);
 
                         string name = string.Format(series.NameFormat, nextLevel);
                         string desc = $"(x{series.MultiplierPerLevel} effect)";
@@ -394,7 +413,7 @@ namespace InfGame
 
                         string text = $"{name} - {desc}\n{price}";
                         var btn = GetPooledButton(new Rectangle(pad, currentY, w - pad * 2, btnHeight), text, () => {
-                            if (_state.TryBuyProceduralUpgrade(id)) _needsLayout = true;
+                            if (_sim.TryBuyProceduralUpgrade(id)) _needsLayout = true;
                         });
                         btn.Tag = series;
                         _genButtons.Add(btn);
@@ -491,7 +510,7 @@ namespace InfGame
 
                     // 2. Gameplay Tap
                     if (!hitButton) {
-                        _state.Tap();
+                        _sim.Tap();
                         SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
                     }
                 }

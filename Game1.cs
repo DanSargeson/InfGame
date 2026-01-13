@@ -82,8 +82,8 @@ namespace InfGame
             var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             _savePath = Path.Combine(dir, "infgame_save.json");
             
-            _uiManager = new UIManager(_state, _graphics.GraphicsDevice);
             _sim = new GameSimulator(_state);
+            _uiManager = new UIManager(_state, _sim, _graphics.GraphicsDevice);
 
             _sim.OnAutoBuyTriggered += (msg) => {
                 _uiManager.SpawnFloatingText(new Vector2(200, 200), msg, Color.Cyan);
@@ -119,10 +119,7 @@ namespace InfGame
             base.Draw(gameTime);
         }
 
-       
-
-        
-
+      
         // --- Save/Load Boilerplate (Unchanged) ---
         private void LoadOrCreateSave() {
             if (!File.Exists(_savePath)) {
@@ -138,29 +135,30 @@ namespace InfGame
 
                     // --- NEW OFFLINE LOGIC ---
                     var now = DateTimeOffset.UtcNow;
-                    _uiManager._offlineEarnings = _state.CalculateOfflineEarnings(data.LastSavedUtc, now);
+                    var timeSpan = now - data.LastSavedUtc;
 
-                    if (_uiManager._offlineEarnings > 0) {
-                        _uiManager._showWelcomeModal = true;
+                    double secondsOffline = timeSpan.TotalSeconds;
 
-                        
-                        var timeSpan = now - data.LastSavedUtc;
+                    if (secondsOffline > 0) {
+                        // 2. Snapshot: How many souls did we have BEFORE simulation?
+                        var soulsBefore = _state.Souls;
+
+                        // 3. Run the Simulation
+                        // This updates _state.Souls, Corruption, etc.
+                        _sim.ApplyOfflineProgress(secondsOffline);
+
+                        // 4. Calculate the Difference
+                        var soulsAfter = _state.Souls;
+                        var earned = soulsAfter - soulsBefore;
+
+                        // 5. Update UI
+                        _uiManager._offlineEarnings = earned;
                         _uiManager._offlineTimeText = $"Offline for: {(int)timeSpan.TotalHours}h {timeSpan.Minutes}m";
 
-                        // Create the Collect Button (Use Object Pooling!)
-                        var w = GraphicsDevice.Viewport.Width;
-                        var h = GraphicsDevice.Viewport.Height;
-
-                        // Center button
-                        _uiManager._collectButton = _uiManager.GetPooledButton(
-                            new Rectangle(w / 2 - 100, h / 2 + 50, 200, 80),
-                            "COLLECT",
-                            () => {
-                                _state.AddCoins(_uiManager._offlineEarnings);
-                                _uiManager._showWelcomeModal = false;
-                               _uiManager.ReturnToPool(_uiManager._collectButton); // Clean up
-                            }
-                        );
+                        // Only show modal if we actually earned something or were gone for > 1 minute
+                        if (secondsOffline > 60) {
+                            _uiManager._showWelcomeModal = true;
+                        }
                     }
                 }
             }

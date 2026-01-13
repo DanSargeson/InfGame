@@ -18,6 +18,10 @@ namespace InfGame
         public event Action<string> OnAutoBuyTriggered;
         public event Action OnRebirth;
 
+        // Add a timer for automation
+        public double _autoBuyTimer = 0.0;
+        public double _autoBuyInterval = 1.0;
+
         public GameSimulator(GameState state) {
             _state = state;
         }
@@ -38,13 +42,15 @@ namespace InfGame
             }
         }
 
+        // Helper: Get Level
+        public int GetProceduralLevel(string seriesId) => _state._proceduralLevels.ContainsKey(seriesId) ? _state._proceduralLevels[seriesId] : 0;
+
         // The core math engine
         private void ProcessTick() {
             // A. Corruption Logic
-            // Calculate new growth rate, apply to state
-            if (_state._Corruption < 1.0) {
-                // Logic moved here from GameState
-                _state._Corruption += _state._CurrentCorruptionGrowth * _state.TickDuration;
+            if (_state.Corruption < 1.0) {
+                _state.Corruption += _state._CurrentCorruptionGrowth * _state.TickDuration;
+                if (_state.Corruption > 1.0) _state.Corruption = 1.0;
             }
 
             // B. Income Logic
@@ -52,22 +58,22 @@ namespace InfGame
             if (income > 0) {
                 _state.Souls += income;
                 _state.LifetimeSouls += income;
-
-                // Fire Event (optional, maybe only fire once per second to save performance)
-                // OnCurrencyGained?.Invoke(income); 
             }
 
-            // C. Auto-Buyers
-            ProcessAutomation();
+            // C. Auto-Buyers (With Timer!)
+            _autoBuyTimer += _state.TickDuration;
+            if (_autoBuyTimer >= _autoBuyInterval) {
+                _autoBuyTimer -= _autoBuyInterval;
+
+                // Only run automation when the timer fires!
+                ProcessAutomation();
+            }
         }
 
         private void ProcessAutomation() {
-            // Run your existing auto-buyer logic here
-            // But now, when a buy happens:
-
+            // 1. Temporarily force "Buy 1" mode
             int oldBuyAmount = _state.BuyAmount;
-
-            _state.BuyAmount = 1; // Force to 1 for auto-buyers
+            _state.BuyAmount = 1;
 
             foreach (var id in _state._purchasedUpgrades) {
                 var def = GameData.GetUpgrade(id);
@@ -76,13 +82,21 @@ namespace InfGame
                 // If this upgrade is an Auto-Buyer...
                 if (def.Type == UpgradeType.AutoBuyGenerator && !string.IsNullOrEmpty(def.TargetId)) {
 
-                    if (!_state.IsAutoBuyerActive(id)) continue; // Skip if disabled
-                    //_state.TryBuyGenerator(def.TargetId);
-                    OnAutoBuyTriggered?.Invoke("Generator X Bought!");
-                    
+                    // Skip if the player toggled it OFF
+                    if (!_state.IsAutoBuyerActive(id)) continue;
+
+                    // FIX: Call the local TryBuyGenerator (not _state.TryBuy...)
+                    // Capture the result to see if we actually bought something
+                    bool bought = TryBuyGenerator(def.TargetId);
+
+                    if (bought) {
+                        OnAutoBuyTriggered?.Invoke(def.Name); // Fire event!
+                    }
                 }
             }
-            _state.BuyAmount = oldBuyAmount; // Restore player preference
+
+            // 2. Restore player's buy preference
+            _state.BuyAmount = oldBuyAmount;
         }
 
         public bool TryBuyUpgrade(string id) {
@@ -119,12 +133,12 @@ namespace InfGame
 
             // Handle "Max" mode
             if (_state.BuyAmount == -1) {
-                amountToBuy = _state.GetMaxBuyable(id);
+                amountToBuy = GetMaxBuyable(id);
                 if (amountToBuy <= 0) return false; // Can't afford even 1
             }
 
             // 1. Calculate the REAL total cost
-            var totalCost = _state.GetBulkCost(id, amountToBuy);
+            var totalCost = GetBulkCost(id, amountToBuy);
 
             // 2. CHECK: Can we afford the TOTAL, not just one?
             // FIX: Changed 'cost' to 'totalCost'
@@ -146,11 +160,20 @@ namespace InfGame
             return true;
         }
 
+        public BigDouble GetProceduralCost(string seriesId) {
+            var def = GameData.GetSeries(seriesId);
+            if (def == null) return BigDouble.Zero;
+
+            int currentLevel = GetProceduralLevel(seriesId);
+            // Formula: Base * (Growth ^ Level)
+            return def.BaseCost * BigDouble.Pow(def.CostMultiplier, currentLevel);
+        }
+
         public bool TryBuyProceduralUpgrade(string seriesId) {
             var def = GameData.GetSeries(seriesId);
             if (def == null) return false;
 
-            var cost = _state.GetProceduralCost(seriesId);
+            var cost = GetProceduralCost(seriesId);
 
             // Currency Check
             if (def.CostCurrency == CurrencyType.Souls) {
@@ -175,8 +198,8 @@ namespace InfGame
 
         private void PurifyCorruption(int amount) {
             double reduction = _state.PurificationAmount + (amount * 0.01);
-            _state._Corruption -= reduction;
-            if (_state._Corruption < 0.0) _state._Corruption = 0.0;
+            _state.Corruption -= reduction;
+            if (_state.Corruption < 0.0) _state.Corruption = 0.0;
             _state._CurrentCorruptionGrowth = _state._BaseCorruptionGrowthRate; // Reset growth rate
         }
 
@@ -194,7 +217,7 @@ namespace InfGame
 
             foreach (var series in GameData.UpgradeSeries) {
                 if (series.Type == UpgradeType.GlobalMultiplier) {
-                    int lvl = _state.GetProceduralLevel(series.Id);
+                    int lvl = GetProceduralLevel(series.Id);
                     if (lvl > 0) globalMult *= Math.Pow(series.MultiplierPerLevel, lvl);
                 }
             }
@@ -215,7 +238,7 @@ namespace InfGame
 
                 foreach (var series in GameData.UpgradeSeries) {
                     if (series.Type == UpgradeType.GeneratorMultiplier && series.TargetId == def.Id) {
-                        int lvl = _state.GetProceduralLevel(series.Id);
+                        int lvl = GetProceduralLevel(series.Id);
                         if (lvl > 0) genMult *= Math.Pow(series.MultiplierPerLevel, lvl);
                     }
                 }
@@ -226,22 +249,52 @@ namespace InfGame
             _state.SoulsPerSecond = total * _state.prestigeMult;
         }
 
-        public void Tick() {
-            _state._CurrentCorruptionGrowth += _state._CorruptionGrowthAccleration * _state.TickDuration;
-            if (_state._Corruption < 0.9900000) { // Cap at 99%
-                _state._Corruption += _state._CurrentCorruptionGrowth * _state.TickDuration;
-                if (_state._Corruption > 0.9900000) _state._Corruption = 0.9900000;
-            }
+        // Helper: Calculate Max we can afford
+        public int GetMaxBuyable(string id) {
+            var def = GameData.GetGenerator(id);
+            if (def == null) return 0;
 
-            var income = (_state.SoulsPerSecond * _state.TimeScale) * _state.TickDuration;
-            _state.Souls += income;
-            _state.LifetimeSouls += income;
+            var nextCost = GetCost(id);
+            if (_state.Souls < nextCost) return 0;
 
-            _state._autoBuyTimer += _state.TickDuration;
-            if (_state._autoBuyTimer >= _state._autoBuyInterval) {
-                _state._autoBuyTimer -= _state._autoBuyInterval;
-                // RunAutoBuyers();
-            }
+            double r = def.CostMultiplier;
+
+            // Formula derived from Geometric Sum Inverse:
+            // Max = Log_r( (Coins * (r-1) / NextCost) + 1 )
+
+            var term = (_state.Souls * (r - 1.0)) / nextCost;
+            var logValue = BigDouble.Log10(term + 1.0) / Math.Log10(r);
+
+            return (int)Math.Floor(logValue);
+        }
+
+
+        // Helper: Calculate Cost for 'count' items
+        public BigDouble GetBulkCost(string id, int count) {
+            var def = GameData.GetGenerator(id);
+            if (def == null) return BigDouble.Zero;
+
+            // Current price of the NEXT single unit
+            var nextCost = GetCost(id);
+            double r = def.CostMultiplier; // e.g., 1.15
+
+            // If buying 1, standard logic
+            if (count == 1) return nextCost;
+
+            // Geometric Sum: Cost * (r^N - 1) / (r - 1)
+            var numerator = BigDouble.Pow(r, count) - 1.0;
+            var denominator = r - 1.0;
+
+            return nextCost * (numerator / denominator);
+        }
+
+        public BigDouble GetCost(string id) {
+            var def = GameData.GetGenerator(id);
+            if (def == null) return BigDouble.Zero;
+
+            int count = _state.GetCount(id);
+            // Math: BaseCost * (1.15 ^ Count)
+            return def.BaseCost * Math.Pow(def.CostMultiplier, count);
         }
 
         private void RecalcTap() {
@@ -253,7 +306,7 @@ namespace InfGame
 
             foreach (var series in GameData.UpgradeSeries) {
                 if (series.Type == UpgradeType.TapMultiplier) {
-                    int lvl = _state.GetProceduralLevel(series.Id);
+                    int lvl = GetProceduralLevel(series.Id);
                     if (lvl > 0) mult *= Math.Pow(series.MultiplierPerLevel, lvl);
                 }
             }
@@ -261,7 +314,7 @@ namespace InfGame
 
             foreach (var series in GameData.UpgradeSeries) {
                 if (series.Type == UpgradeType.TapMultiplier) {
-                    int lvl = _state.GetProceduralLevel(series.Id);
+                    int lvl = GetProceduralLevel(series.Id);
                     if (lvl > 0) mult *= Math.Pow(series.MultiplierPerLevel, lvl);
                 }
             }
@@ -271,6 +324,16 @@ namespace InfGame
             _state.prestigeMult = BigDouble.One + (_state.RebirthPoints * _state.RebirthBonusPercent);
 
             _state.TapValue = new BigDouble(1.0) * mult * _state.prestigeMult;
+        }
+
+        public void AddCoins(BigDouble amount) {
+            _state.Souls += amount;
+            _state.LifetimeSouls += amount; // Don't forget lifetime!
+        }
+
+
+        public void Tap() {
+            _state.Souls += _state.TapValue;
         }
 
         public BigDouble CalculateRebirthGain() {
@@ -313,8 +376,27 @@ namespace InfGame
             RecalcTap();
             RecalcCps();
 
-            _state._Corruption = 0.0; // Reset Corruption
+            _state.Corruption = 0.0; // Reset Corruption
             _state._CurrentCorruptionGrowth = _state._BaseCorruptionGrowthRate; // Reset growth rate
+        }
+
+        public void ApplyOfflineProgress(double seconds) {
+            // Cap offline time (e.g. 24 hours)
+            if (seconds > 86400) seconds = 86400;
+
+            // Simulate in chunks (e.g. 1000 ticks) to prevent freezing
+            double simulatedDt = 1.0; // Simulate 1 second per tick for speed
+            int ticks = (int)(seconds / simulatedDt);
+
+            // Safety cap
+            if (ticks > 1000) {
+                simulatedDt = seconds / 1000.0;
+                ticks = 1000;
+            }
+
+            for (int i = 0; i < ticks; i++) {
+                ProcessTick();
+            }
         }
 
         // Helper for Offline Progress
