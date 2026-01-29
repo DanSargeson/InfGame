@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "dgSpecHash": "uhX4xLEoEqg=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\dansa\\source\\repos\\InfGame\\InfGame\\InfGame\\InfGame.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\dansa\\.nuget\\packages\\microsoft.net.illink.tasks\\9.0.11\\microsoft.net.illink.tasks.9.0.11.nupkg.sha512",
+    "C:\\Users\\dansa\\.nuget\\packages\\monogame.content.builder.task\\3.8.4.1\\monogame.content.builder.task.3.8.4.1.nupkg.sha512",
+    "C:\\Users\\dansa\\.nuget\\packages\\monogame.framework.android\\3.8.4.1\\monogame.framework.android.3.8.4.1.nupkg.sha512",
+    "C:\\Users\\dansa\\.nuget\\packages\\monogame.library.openal\\1.24.3.2\\monogame.library.openal.1.24.3.2.nupkg.sha512",
+    "C:\\Users\\dansa\\.nuget\\packages\\microsoft.android.runtime.35.android-arm64\\35.0.105\\microsoft.android.runtime.35.android-arm64.35.0.105.nupkg.sha512",
+    "C:\\Users\\dansa\\.nuget\\packages\\microsoft.android.runtime.35.android-x64\\35.0.105\\microsoft.android.runtime.35.android-x64.35.0.105.nupkg.sha512",
+    "C:\\Users\\dansa\\.nuget\\packages\\microsoft.android.ref.35\\35.0.105\\microsoft.android.ref.35.35.0.105.nupkg.sha512"
+  ],
+  "logs": []
+}
