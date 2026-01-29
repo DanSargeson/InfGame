@@ -1,0 +1,10 @@
+/.git
+/.config
+/.vscode
+/bin
+/obj
+/Resources
+/Content/bin
+/Content/obj
+InfGame.csproj
+InfGame.csproj.user
