@@ -203,7 +203,7 @@ namespace InfGame
             _state._CurrentCorruptionGrowth = _state._BaseCorruptionGrowthRate; // Reset growth rate
         }
 
-        private void RecalcCps() {
+        public void RecalcCps() {
             var total = BigDouble.Zero;
             _state.prestigeMult = BigDouble.One + (_state.RebirthPoints * _state.RebirthBonusPercent);
 
@@ -297,7 +297,7 @@ namespace InfGame
             return def.BaseCost * Math.Pow(def.CostMultiplier, count);
         }
 
-        private void RecalcTap() {
+        public void RecalcTap() {
             double mult = 1.0;
             foreach (var id in _state._purchasedUpgrades) {
                 var def = GameData.GetUpgrade(id);

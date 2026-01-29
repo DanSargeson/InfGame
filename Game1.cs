@@ -133,6 +133,9 @@ namespace InfGame
                 if (data != null) {
                     _state.LoadFrom(data);
 
+                    _sim.RecalcCps();
+                    _sim.RecalcTap();
+
                     // --- NEW OFFLINE LOGIC ---
                     var now = DateTimeOffset.UtcNow;
                     var timeSpan = now - data.LastSavedUtc;
