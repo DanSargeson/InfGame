@@ -1,4 +1,0 @@
-Source File,Dest File,Processor Type,Content Type,Source File Size,Dest File Size,Build Seconds
-"C:/Users/dansa/source/repos/InfGame/InfGame/InfGame/Content/GameData.json","C:\Users\dansa\source\repos\InfGame\InfGame\InfGame\Content\bin\Android\GameData.json","CopyItem","File",2932,2932,0.0021506
-"C:/Users/dansa/source/repos/InfGame/InfGame/InfGame/Content/pixel.png","C:/Users/dansa/source/repos/InfGame/InfGame/InfGame/Content/bin/Android/pixel.xnb","TextureProcessor","Texture2DContent",547,89,0.156869
-"C:/Users/dansa/source/repos/InfGame/InfGame/InfGame/Content/UIFont.spritefont","C:/Users/dansa/source/repos/InfGame/InfGame/InfGame/Content/bin/Android/UIFont.xnb","FontDescriptionProcessor","SpriteFontContent",2069,136217,0.1036688
