@@ -80,30 +80,26 @@ namespace InfGame
 
         public void Update(GameTime gameTime) {
             var dt = gameTime.ElapsedGameTime.TotalSeconds;
-            _accumulator += dt;
 
-            //var tickRate = _state.TickDuration;
-            //if (_accumulator > 1.0) _accumulator = 1.0;
+            // --- 1. ANIMATIONS (Always Run Every Frame) ---
+            // This ensures flashes and scrolling are smooth (60 FPS)
 
-            //while (_accumulator >= tickRate) {
-            //    _sim.Tick();
-            //    _accumulator -= tickRate;
-            //}
-
-            // Update Standalone Buttons
             _prestigeButton?.Update(dt);
             _buyMultButton?.Update(dt);
-            _collectButton?.Update(dt); // Ensure collection button animates
+            _collectButton?.Update(dt);
 
-            // Update Nav Buttons
             foreach (var btn in _navButtons) btn.Update(dt);
 
-            // Update List Buttons
-            _uiUpdateTimer += gameTime.ElapsedGameTime.TotalSeconds;
-            if (_uiUpdateTimer > 0.1) {
+            // FIX 1: Update list button animations OUTSIDE the throttle
+            foreach (var btn in _genButtons) btn.Update(dt);
 
+            // --- 2. DATA & TEXT UPDATES (Throttled) ---
+            // This ensures we don't rebuild strings 60 times a second (10 FPS)
+
+            _uiUpdateTimer += dt;
+            if (_uiUpdateTimer > 0.1) {
                 _uiUpdateTimer = 0.0;
-                UpdateGeneratorButtons(dt);
+                UpdateUI_Text(); // Renamed for clarity
             }
 
             if (_needsLayout) {
@@ -111,25 +107,15 @@ namespace InfGame
                 _needsLayout = false;
             }
 
-            //HandleInput();
-
-            // Logic for Prestige Button Text
-            var potentialGain = _sim.CalculateRebirthGain();
-            if (potentialGain > 0) {
-                _prestigeButton.Text = $"REBIRTH: +{NumberFormat.Compact(potentialGain)} PTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
-                _prestigeButton.IsActive = true;
-            }
-            else {
-                _prestigeButton.Text = "Rebirth Locked (1M Souls)";
-                _prestigeButton.IsActive = false;
-            }
+            // Input handling is safe to run every frame
+            // (Assuming InputManager is lightweight)
+            // _input.Update() is called in Game1, so we just handle events via callbacks now
 
             // Update Particles
             for (int i = _particles.Count - 1; i >= 0; i--) {
                 _particles[i].Update(dt);
                 if (!_particles[i].IsActive) {
-                    // Recycle!
-                    _particlePool.Push(_particles[i]);
+                    ReturnToPool(_particles[i]);
                     _particles.RemoveAt(i);
                 }
             }
@@ -217,9 +203,18 @@ namespace InfGame
             _spriteBatch.DrawString(_font, text, new Vector2(x, y), color);
         }
 
-        private void UpdateGeneratorButtons(double dt) {
+        private void UpdateUI_Text() {
+
+            // FIX 2: Update Multi-Buy Text GLOBALLY
+            // This runs regardless of which tab you are on
+            string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
+            if (_buyMultButton != null) {
+                _buyMultButton.Text = $"BUY: {label}";
+            }
+
+            // Update List Items
             foreach (var btn in _genButtons) {
-                btn.Update(dt);
+                // Note: btn.Update(dt) is REMOVED from here because we did it in the main loop
 
                 if (btn.Tag is GeneratorDef genDef) {
                     int amount = _state.BuyAmount;
@@ -236,11 +231,9 @@ namespace InfGame
                     btn.Text = $"{genDef.Name} ({currentCount})\n{prefix}: {NumberFormat.Compact(totalCost)}";
                     btn.IsActive = _state.Souls >= totalCost;
 
-                    string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
-                    _buyMultButton.Text = $"BUY: {label}";
+                    // FIX 2 (Cleanup): Removed the _buyMultButton logic from inside this loop
                 }
                 else if (btn.Tag is UpgradeDef upgDef) {
-                    // Handle Auto-Buyers
                     if (upgDef.Type == UpgradeType.AutoBuyGenerator) {
                         if (_state.HasUpgrade(upgDef.Id)) {
                             string status = _state.IsAutoBuyerActive(upgDef.Id) ? "ON" : "OFF";
