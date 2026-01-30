@@ -104,8 +104,8 @@ namespace InfGame
                 _saveTimer = 0;
             }
 
-            _sim.Update(gameTime.ElapsedGameTime.TotalSeconds);
             _inputManager.Update();
+            _sim.Update(gameTime.ElapsedGameTime.TotalSeconds);
             _uiManager.Update(gameTime);
             base.Update(gameTime);
         }
