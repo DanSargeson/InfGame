@@ -78,48 +78,7 @@ namespace InfGame
             if (particle != null) _particlePool.Push(particle);
         }
 
-        public void Update(GameTime gameTime) {
-            var dt = gameTime.ElapsedGameTime.TotalSeconds;
-
-            // --- 1. ANIMATIONS (Always Run Every Frame) ---
-            // This ensures flashes and scrolling are smooth (60 FPS)
-
-            _prestigeButton?.Update(dt);
-            _buyMultButton?.Update(dt);
-            _collectButton?.Update(dt);
-
-            foreach (var btn in _navButtons) btn.Update(dt);
-
-            // FIX 1: Update list button animations OUTSIDE the throttle
-            foreach (var btn in _genButtons) btn.Update(dt);
-
-            // --- 2. DATA & TEXT UPDATES (Throttled) ---
-            // This ensures we don't rebuild strings 60 times a second (10 FPS)
-
-            _uiUpdateTimer += dt;
-            if (_uiUpdateTimer > 0.1) {
-                _uiUpdateTimer = 0.0;
-                UpdateUI_Text(); // Renamed for clarity
-            }
-
-            if (_needsLayout) {
-                LayoutUI();
-                _needsLayout = false;
-            }
-
-            // Input handling is safe to run every frame
-            // (Assuming InputManager is lightweight)
-            // _input.Update() is called in Game1, so we just handle events via callbacks now
-
-            // Update Particles
-            for (int i = _particles.Count - 1; i >= 0; i--) {
-                _particles[i].Update(dt);
-                if (!_particles[i].IsActive) {
-                    ReturnToPool(_particles[i]);
-                    _particles.RemoveAt(i);
-                }
-            }
-        }
+       
 
         private void DrawHeader(Texture2D _pixel, SpriteBatch _spriteBatch, SpriteFont _font) {
             var currentCps = _state.SoulsPerSecond * _state.TimeScale;
@@ -203,18 +162,73 @@ namespace InfGame
             _spriteBatch.DrawString(_font, text, new Vector2(x, y), color);
         }
 
-        private void UpdateUI_Text() {
+        public void Update(GameTime gameTime) {
+            var dt = gameTime.ElapsedGameTime.TotalSeconds;
+            _accumulator += dt;
 
-            // FIX 2: Update Multi-Buy Text GLOBALLY
-            // This runs regardless of which tab you are on
-            string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
+            // --- 1. ANIMATIONS (Run every frame for smooth 60 FPS) ---
+            _prestigeButton?.Update(dt);
+            _buyMultButton?.Update(dt);
+            _collectButton?.Update(dt);
+
+            foreach (var btn in _navButtons) btn.Update(dt);
+
+            // Smooth flash animation for list buttons
+            foreach (var btn in _genButtons) btn.Update(dt);
+
+            // --- 2. LAYOUT & STATE (Handle changes) ---
+            if (_needsLayout) {
+                LayoutUI();
+                _needsLayout = false;
+
+                // CRITICAL FIX: Force an immediate state update.
+                // This prevents the "Flash" where buttons briefly look active/default
+                // before the next throttled update catches them.
+                UpdateGeneratorButtons(0);
+            }
+
+            // --- 3. TEXT/DATA UPDATE (Throttled to 10 FPS) ---
+            _uiUpdateTimer += dt;
+            if (_uiUpdateTimer > 0.1) {
+                _uiUpdateTimer = 0.0;
+                UpdateGeneratorButtons(dt);
+            }
+
+          //  HandleInput();
+
+            // --- 4. PARTICLES ---
+            for (int i = _particles.Count - 1; i >= 0; i--) {
+                _particles[i].Update(dt);
+                if (!_particles[i].IsActive) {
+                    ReturnToPool(_particles[i]);
+                    _particles.RemoveAt(i);
+                }
+            }
+        }
+
+        private void UpdateGeneratorButtons(double dt) {
+            // A. Update Prestige Button (Moved here so it updates reliably)
+            var potentialGain = _sim.CalculateRebirthGain();
+            if (_prestigeButton != null) {
+                if (potentialGain > 0) {
+                    _prestigeButton.Text = $"REBIRTH: +{NumberFormat.Compact(potentialGain)} PTS\n(+{potentialGain.ToDouble() * 10}% Bonus)";
+                    _prestigeButton.IsActive = true;
+                }
+                else {
+                    _prestigeButton.Text = "Rebirth Locked (1M Souls)";
+                    _prestigeButton.IsActive = false;
+                }
+            }
+
+            // B. Update Multi-Buy Button
             if (_buyMultButton != null) {
+                string label = _state.BuyAmount == -1 ? "Max" : $"{_state.BuyAmount}x";
                 _buyMultButton.Text = $"BUY: {label}";
             }
 
-            // Update List Items
+            // C. Update List Buttons
             foreach (var btn in _genButtons) {
-                // Note: btn.Update(dt) is REMOVED from here because we did it in the main loop
+                // Note: btn.Update(dt) is intentionally NOT called here (done in main Update)
 
                 if (btn.Tag is GeneratorDef genDef) {
                     int amount = _state.BuyAmount;
@@ -230,8 +244,6 @@ namespace InfGame
 
                     btn.Text = $"{genDef.Name} ({currentCount})\n{prefix}: {NumberFormat.Compact(totalCost)}";
                     btn.IsActive = _state.Souls >= totalCost;
-
-                    // FIX 2 (Cleanup): Removed the _buyMultButton logic from inside this loop
                 }
                 else if (btn.Tag is UpgradeDef upgDef) {
                     if (upgDef.Type == UpgradeType.AutoBuyGenerator) {
