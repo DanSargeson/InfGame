@@ -13,6 +13,7 @@ namespace InfGame
 
         // Corruption System
         public double Corruption { get; set; } = 0.0;
+        public double CurrentCorruptionGrowth { get; set; }
 
         // Inventory
         public Dictionary<string, int> _generatorCounts = new();
@@ -75,6 +76,7 @@ namespace InfGame
                 LastSavedUtc = DateTimeOffset.UtcNow,
 
                 Corruption = Corruption,
+                CurrentCorruptionGrowth = _CurrentCorruptionGrowth,
 
                 GeneratorCounts = new Dictionary<string, int>(_generatorCounts),
                 UpgradesBought = new List<string>(_purchasedUpgrades),
@@ -90,6 +92,10 @@ namespace InfGame
             LastSavedUtc = data.LastSavedUtc;
 
             Corruption = data.Corruption;
+            if (_CurrentCorruptionGrowth < _BaseCorruptionGrowthRate) {
+                _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate;
+            }
+            //_CurrentCorruptionGrowth = data.CurrentCorruptionGrowth;
 
             _generatorCounts = data.GeneratorCounts ?? new Dictionary<string, int>();
             _proceduralLevels = data.ProceduralUpgradeLevels ?? new Dictionary<string, int>();
