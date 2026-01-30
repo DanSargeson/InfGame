@@ -28,6 +28,8 @@ namespace InfGame
         private Rectangle _listBounds;
         private bool _needsLayout = true;
 
+        private double _uiUpdateTimer = 0.0;
+
         private GameState _state;
         private GameSimulator _sim;
         private readonly GraphicsDevice _graphicsDevice;
@@ -43,13 +45,17 @@ namespace InfGame
         private List<UiButton> _genButtons = new();
         private Stack<UiButton> _buttonPool = new Stack<UiButton>();
 
+        private Stack<FloatingText> _particlePool = new Stack<FloatingText>();
+
         private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
-        public UIManager(GameState state, GameSimulator sim, GraphicsDevice graphicsDevice) {
+        public UIManager(GameState state, GameSimulator sim, InputManager input, GraphicsDevice graphicsDevice) {
             _state = state;
             _sim = sim;
             _needsLayout = true;
             _graphicsDevice = graphicsDevice;
+            input.OnTap += HandleTap;
+            input.OnVerticalScroll += HandleScroll;
         }
 
         public UiButton GetPooledButton(Rectangle bounds, string text, Action onClick) {
@@ -66,6 +72,10 @@ namespace InfGame
 
         public void ReturnToPool(UiButton btn) {
             if (btn != null) _buttonPool.Push(btn);
+        }
+
+        public void ReturnToPool(FloatingText particle) {
+            if (particle != null) _particlePool.Push(particle);
         }
 
         public void Update(GameTime gameTime) {
@@ -89,14 +99,19 @@ namespace InfGame
             foreach (var btn in _navButtons) btn.Update(dt);
 
             // Update List Buttons
-            UpdateGeneratorButtons(dt);
+            _uiUpdateTimer += gameTime.ElapsedGameTime.TotalSeconds;
+            if (_uiUpdateTimer > 0.1) {
+
+                _uiUpdateTimer = 0.0;
+                UpdateGeneratorButtons(dt);
+            }
 
             if (_needsLayout) {
                 LayoutUI();
                 _needsLayout = false;
             }
 
-            HandleInput();
+            //HandleInput();
 
             // Logic for Prestige Button Text
             var potentialGain = _sim.CalculateRebirthGain();
@@ -113,6 +128,8 @@ namespace InfGame
             for (int i = _particles.Count - 1; i >= 0; i--) {
                 _particles[i].Update(dt);
                 if (!_particles[i].IsActive) {
+                    // Recycle!
+                    _particlePool.Push(_particles[i]);
                     _particles.RemoveAt(i);
                 }
             }
@@ -426,95 +443,72 @@ namespace InfGame
         }
 
         public void SpawnFloatingText(Vector2 pos, string text, Color color) {
-            var rnd = new Random();
-            float xOffset = rnd.Next(-20, 21);
-            _particles.Add(new FloatingText(new Vector2(pos.X + xOffset, pos.Y), text, color));
+            FloatingText ft;
+            if (_particlePool.Count > 0) {
+                ft = _particlePool.Pop();
+                ft.Reset(pos, text, color);
+            }
+            else {
+                ft = new FloatingText(pos, text, color);
+            }
+            _particles.Add(ft);
         }
 
-        private void HandleInput() {
-            while (TouchPanel.IsGestureAvailable) {
-                var g = TouchPanel.ReadGesture();
-
-                if (_showWelcomeModal) {
-                    if (g.GestureType == GestureType.Tap) {
-                        var p = new Point((int)g.Position.X, (int)g.Position.Y);
-                        if (_collectButton != null && _collectButton.HitTest(p)) {
-                            _collectButton.TriggerFlash();
-                            _collectButton.OnClick?.Invoke();
-                        }
-                    }
-                    continue;
+        private void HandleTap(Point p) {
+            // 1. Modal Check
+            if (_showWelcomeModal) {
+                if (_collectButton != null && _collectButton.HitTest(p)) {
+                    _collectButton.TriggerFlash();
+                    _collectButton.OnClick?.Invoke();
                 }
+                return; // Block other input
+            }
 
-                if (g.GestureType == GestureType.Tap) {
-                    var p = new Point((int)g.Position.X, (int)g.Position.Y);
-
-                    // Check Header Buttons
-                    if (_prestigeButton.HitTest(p)) {
-                        _prestigeButton.TriggerFlash();
-                        _prestigeButton.OnClick?.Invoke();
-                    }
-                    else if (_buyMultButton.HitTest(p)) {
-                        _buyMultButton.TriggerFlash();
-                        _buyMultButton.OnClick?.Invoke();
-                    }
-                    // Check Nav Buttons
-                    foreach (var btn in _navButtons) {
-                        if (btn.HitTest(p)) {
-                            btn.TriggerFlash();
-                            btn.OnClick?.Invoke();
-                        }
-                    }
-
-                    // Check Scroll List
-                    if (_listBounds.Contains(p)) {
-                        float relativeY = (p.Y - _listStartY) + _scrollY;
-                        int totalItemHeight = _itemHeight + _itemPadding;
-                        int index = (int)(relativeY / totalItemHeight);
-
-                        if (index >= 0 && index < _genButtons.Count) {
-                            var btn = _genButtons[index];
-                            var scrollPoint = new Point(p.X, p.Y + (int)_scrollY);
-                            if (btn.HitTest(scrollPoint)) {
-                                btn.TriggerFlash();
-                                btn.OnClick?.Invoke();
-                            }
-                        }
-                    }
-                }
-                else if (g.GestureType == GestureType.VerticalDrag) {
-                    _scrollY -= g.Delta.Y;
-                    if (_scrollY < 0) _scrollY = 0;
-                    if (_scrollY > _maxScroll) _scrollY = _maxScroll;
+            // 2. Header Buttons
+            if (_prestigeButton.HitTest(p)) {
+                _prestigeButton.TriggerFlash();
+                _prestigeButton.OnClick?.Invoke();
+                return;
+            }
+            else if (_buyMultButton.HitTest(p)) {
+                _buyMultButton.TriggerFlash();
+                _buyMultButton.OnClick?.Invoke();
+            }
+            // Check Nav Buttons
+            foreach (var btn in _navButtons) {
+                if (btn.HitTest(p)) {
+                    btn.TriggerFlash();
+                    btn.OnClick?.Invoke();
                 }
             }
 
-            // Raw Tap Logic (Gameplay)
-            var touchstate = TouchPanel.GetState();
-            foreach (var touch in touchstate) {
-                if (touch.State == TouchLocationState.Pressed) {
-                    var p = new Point((int)touch.Position.X, (int)touch.Position.Y);
-
-                    if (_showWelcomeModal) continue; // Don't tap through modal
-
-                    // 1. Did we hit a specific UI Button?
-                    bool hitButton = false;
-                    if (_prestigeButton.HitTest(p) || _buyMultButton.HitTest(p)) hitButton = true;
-                    foreach (var btn in _navButtons) if (btn.HitTest(p)) hitButton = true;
-
-                    if (_listBounds.Contains(p)) {
-                        float relativeY = (p.Y - _listStartY) + _scrollY;
-                        int index = (int)(relativeY / (_itemHeight + _itemPadding));
-                        if (index >= 0 && index < _genButtons.Count) hitButton = true;
-                    }
-
-                    // 2. Gameplay Tap
-                    if (!hitButton) {
-                        _sim.Tap();
-                        SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
+            // 3. List Buttons
+            bool hitList = false;
+            if (_listBounds.Contains(p)) {
+                float relativeY = (p.Y - _listStartY) + _scrollY;
+                int index = (int)(relativeY / (_itemHeight + _itemPadding));
+                if (index >= 0 && index < _genButtons.Count) {
+                    var btn = _genButtons[index];
+                    if (btn.HitTest(new Point(p.X, p.Y + (int)_scrollY))) {
+                        btn.TriggerFlash();
+                        btn.OnClick?.Invoke();
+                        hitList = true;
                     }
                 }
             }
+
+            // 4. Gameplay Tap (If nothing else hit)
+            if (!hitList) {
+                _sim.Tap();
+                SpawnFloatingText(new Vector2(p.X, p.Y - 50), $"+{NumberFormat.Compact(_state.TapValue)}", Color.Lime);
+            }
         }
+
+        private void HandleScroll(float deltaY) {
+            _scrollY -= deltaY;
+            if (_scrollY < 0) _scrollY = 0;
+            if (_scrollY > _maxScroll) _scrollY = _maxScroll;
+        }
+
     }
 }

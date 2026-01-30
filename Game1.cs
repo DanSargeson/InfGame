@@ -32,6 +32,7 @@ namespace InfGame
 
         private UIManager _uiManager;
         private GameSimulator _sim;
+        private InputManager _inputManager;
 
         // Layout State
         private string _savePath;
@@ -83,7 +84,8 @@ namespace InfGame
             _savePath = Path.Combine(dir, "infgame_save.json");
             
             _sim = new GameSimulator(_state);
-            _uiManager = new UIManager(_state, _sim, _graphics.GraphicsDevice);
+            _inputManager = new InputManager();
+            _uiManager = new UIManager(_state, _sim, _inputManager, _graphics.GraphicsDevice);
 
             _sim.OnAutoBuyTriggered += (msg) => {
                 _uiManager.SpawnFloatingText(new Vector2(200, 200), msg, Color.Cyan);
@@ -103,6 +105,7 @@ namespace InfGame
             }
 
             _sim.Update(gameTime.ElapsedGameTime.TotalSeconds);
+            _inputManager.Update();
             _uiManager.Update(gameTime);
             base.Update(gameTime);
         }

@@ -29,6 +29,15 @@ namespace InfGame
             Position += Velocity * (float)dt;
         }
 
+        public void Reset(Vector2 pos, string text, Color color) {
+            Position = pos;
+            Text = text;
+            Color = color;
+            Velocity = new Vector2(0, -100); // Moves Up
+            Life = 1.0f;
+            MaxLife = 1.0f;
+        }
+
         public void Draw(SpriteBatch sb, SpriteFont font) {
             if (!IsActive) return;
 
