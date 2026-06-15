@@ -15,6 +15,8 @@ namespace InfGame
         private GraphicsDevice _graphicsDevice;
 
 
+
+
         private bool _showWelcomeModal = false;
         private BigDouble _offlineEarnings = BigDouble.Zero;
         private string _offlineTimeText = "";
@@ -22,6 +24,10 @@ namespace InfGame
         private ViewMode _viewMode = ViewMode.Generators;
         private IUIView _activeView; // Replaces _mainScrollList temporarily until you build all views
         private GeneratorsView _generatorsView;
+        private UpgradesView _upgradesView;
+        private UpgradesView _autoBuyersView;
+        private UpgradesView _shopView;
+        private SettingsView _settingsView;
 
         private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
@@ -64,12 +70,12 @@ namespace InfGame
             var prestigeBtn = new DynamicButton(
                 new Rectangle(pad, 80, w - pad * 2, 80),
                 textFunc: () => {
-                    var gain = _sim.CalculateRebirthGain();
+                    var gain = _sim.Economy.CalculateRebirthGain();
                     return gain > 0
                         ? $"REBIRTH: +{NumberFormat.Compact(gain)} PTS\n(+{gain.ToDouble() * 10}% Bonus)"
                         : "Rebirth Locked (1M Souls)";
                 },
-                activeFunc: () => _sim.CalculateRebirthGain() > 0,
+                activeFunc: () => _sim.Economy.CalculateRebirthGain() > 0,
                 onClick: () => _sim.DoRebirth()
             );
             _rootElements.Add(prestigeBtn);
@@ -114,21 +120,36 @@ namespace InfGame
 
             // --- 5. INITIALIZE VIEWS ---
             int listStartY = navY + navHeight + pad;
-            _listBounds = new Rectangle(0, listStartY, w, h - listStartY); // Now saved to class
+            _listBounds = new Rectangle(0, listStartY, w, h - listStartY);
+
+            // Helper callback to force the active view to recalculate its lists (useful when items are bought)
+            Action rebuildLayout = () => _activeView?.Layout(_listBounds, null);
 
             _generatorsView = new GeneratorsView(_state, _sim);
-            _generatorsView.Layout(_listBounds, null); // Pass the class variable
+            _upgradesView = new UpgradesView(_state, _sim, ViewMode.Upgrades, rebuildLayout);
+            _autoBuyersView = new UpgradesView(_state, _sim, ViewMode.AutoBuyers, rebuildLayout);
+            _shopView = new UpgradesView(_state, _sim, ViewMode.RebirthShop, rebuildLayout);
+            _settingsView = new SettingsView(_state);
 
+            // Default bootup view
             SwitchView(ViewMode.Generators);
         }
 
         private void SwitchView(ViewMode mode) {
             _viewMode = mode;
 
-            // In the future, add switch cases here for UpgradesView, SettingsView, etc.
-            if (mode == ViewMode.Generators) {
-                _activeView = _generatorsView;
-            }
+            // Clean up buttons from the old view if you implement a pool later
+            _activeView?.Cleanup(null);
+
+            // Swap the view based on the Enum
+            if (mode == ViewMode.Generators) _activeView = _generatorsView;
+            else if (mode == ViewMode.Upgrades) _activeView = _upgradesView;
+            else if (mode == ViewMode.AutoBuyers) _activeView = _autoBuyersView;
+            else if (mode == ViewMode.RebirthShop) _activeView = _shopView;
+            else if (mode == ViewMode.Settings) _activeView = _settingsView;
+
+            // Force the new view to build its buttons based on the bounds
+            _activeView?.Layout(_listBounds, null);
         }
 
         public void Update(double dt) {

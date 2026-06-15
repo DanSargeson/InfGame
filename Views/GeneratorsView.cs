@@ -65,7 +65,7 @@ namespace InfGame
 
                     // Handle "Max" mode specifically
                     if (amount == -1) {
-                        amount = _sim.GetMaxBuyable(genDef.Id);
+                        amount = _sim.Economy.GetMaxBuyable(genDef.Id);
                         if (amount == 0) {
                             amount = 1;
                             prefix = "Max";
@@ -76,7 +76,7 @@ namespace InfGame
                     }
 
                     // 2. Fetch the live numbers from Simulator and State
-                    var totalCost = _sim.GetBulkCost(genDef.Id, amount);
+                    var totalCost = _sim.Economy.GetBulkCost(genDef.Id, amount);
                     var currentCount = _state.GetCount(genDef.Id);
 
                     // 3. Format the text and toggle the active state
