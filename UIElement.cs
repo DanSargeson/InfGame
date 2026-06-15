@@ -5,7 +5,7 @@ namespace InfGame
 {
     public abstract class UIElement
     {
-        public Rectangle Bounds;
+        public virtual Rectangle Bounds { get; set; }
         public bool IsVisible { get; set; } = true;
 
         // Pass down the state so elements can read their own data if needed

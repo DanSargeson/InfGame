@@ -34,11 +34,8 @@ namespace InfGame
         private GameSimulator _sim;
         private InputManager _inputManager;
 
-        // Layout State
-        private string _savePath;
-        private readonly JsonSerializerOptions _jsonOptions;
+        private SaveManager _saveManager;
 
-       
 
         public Game1() {
             _graphics = new GraphicsDeviceManager(this);
@@ -47,10 +44,6 @@ namespace InfGame
 
             // Enable Tap AND VerticalDrag for scrolling
             TouchPanel.EnabledGestures = GestureType.Tap | GestureType.VerticalDrag;
-
-            _jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-            _jsonOptions.Converters.Add(new BigDoubleConverter());
-
         }
 
         protected override void Initialize() {
@@ -66,9 +59,7 @@ namespace InfGame
             _pixel = new Texture2D(GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
 
-
             try {
-                // "Content/GameData.json" matches the file path in your project
                 using (var stream = TitleContainer.OpenStream("Content/GameData.json"))
                 using (var reader = new StreamReader(stream)) {
                     var json = reader.ReadToEnd();
@@ -76,13 +67,11 @@ namespace InfGame
                 }
             }
             catch (Exception ex) {
-                // Fallback or Crash if critical data is missing
                 System.Diagnostics.Debug.WriteLine($"Failed to load GameData: {ex.Message}");
             }
 
-            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            _savePath = Path.Combine(dir, "infgame_save.json");
-            
+            // Initialize Systems
+            _saveManager = new SaveManager();
             _sim = new GameSimulator(_state);
             _inputManager = new InputManager();
             _uiManager = new UIManager(_state, _sim, _inputManager, _graphics.GraphicsDevice);
@@ -90,11 +79,27 @@ namespace InfGame
             _sim.OnAutoBuyTriggered += (msg) => {
                 _uiManager.SpawnFloatingText(new Vector2(200, 200), msg, Color.Cyan);
             };
-            LoadOrCreateSave();
+
+            // Process Save & Offline Progress
+            var loadResult = _saveManager.Load(_state);
+
+            _sim.RecalcCps();
+            _sim.RecalcTap();
+
+            if (!loadResult.IsNewSave && loadResult.SecondsOffline > 0) {
+                var soulsBefore = _state.Souls;
+                _sim.ApplyOfflineProgress(loadResult.SecondsOffline);
+                var earned = _state.Souls - soulsBefore;
+
+                if (loadResult.SecondsOffline > 60) {
+                    TimeSpan timeOffline = TimeSpan.FromSeconds(loadResult.SecondsOffline);
+                    _uiManager.ShowOfflineReport(earned, timeOffline);
+                }
+            }
         }
 
-       
-       
+
+
 
         protected override void Update(GameTime gameTime) {
 
@@ -102,7 +107,7 @@ namespace InfGame
 
             _saveTimer += gameTime.ElapsedGameTime.TotalSeconds;
             if (_saveTimer > 30.0) { // Save every 30s
-                Save();
+                _saveManager.Save(_state);
                 _saveTimer = 0;
             }
 
@@ -125,67 +130,10 @@ namespace InfGame
         }
 
       
-        // --- Save/Load Boilerplate (Unchanged) ---
-        private void LoadOrCreateSave() {
-            if (!File.Exists(_savePath)) {
-                _state.MarkSaved(DateTimeOffset.UtcNow);
-                Save();
-                return;
-            }
-            try {
-                var json = File.ReadAllText(_savePath);
-                var data = JsonSerializer.Deserialize<SaveData>(json, _jsonOptions);
-                if (data != null) {
-                    _state.LoadFrom(data);
+        
+        
 
-                    _sim.RecalcCps();
-                    _sim.RecalcTap();
-
-                    // --- NEW OFFLINE LOGIC ---
-                    var now = DateTimeOffset.UtcNow;
-                    var timeSpan = now - data.LastSavedUtc;
-
-                    double secondsOffline = timeSpan.TotalSeconds;
-
-                    if (secondsOffline > 0) {
-                        // 2. Snapshot: How many souls did we have BEFORE simulation?
-                        var soulsBefore = _state.Souls;
-
-                        // 3. Run the Simulation
-                        // This updates _state.Souls, Corruption, etc.
-                        _sim.ApplyOfflineProgress(secondsOffline);
-
-                        // 4. Calculate the Difference
-                        var soulsAfter = _state.Souls;
-                        var earned = soulsAfter - soulsBefore;
-
-                        // 5. Tell the UI to handle the offline earnings
-                        if (secondsOffline > 60) {
-                            TimeSpan timeOffline = TimeSpan.FromSeconds(secondsOffline);
-                            _uiManager.ShowOfflineReport(earned, timeOffline);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex){
-
-                System.Diagnostics.Debug.WriteLine(ex);
-            }
-        }
-
-        private void Save() {
-            try {
-                var data = _state.ToSaveData();
-                var json = JsonSerializer.Serialize(data, _jsonOptions);
-                File.WriteAllText(_savePath, json);
-            }
-            catch(Exception ex) {
-
-                System.Diagnostics.Debug.WriteLine(ex);
-            }
-        }
-
-        protected override void OnDeactivated(object sender, EventArgs args) { Save(); base.OnDeactivated(sender, args); }
-        protected override void OnExiting(object sender, Microsoft.Xna.Framework.ExitingEventArgs args) { Save(); base.OnExiting(sender, args); }
+        protected override void OnDeactivated(object sender, EventArgs args) { _saveManager.Save(_state); base.OnDeactivated(sender, args); }
+        protected override void OnExiting(object sender, Microsoft.Xna.Framework.ExitingEventArgs args) { _saveManager.Save(_state); base.OnExiting(sender, args); }
     }
 }

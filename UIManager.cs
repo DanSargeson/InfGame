@@ -105,18 +105,23 @@ namespace InfGame
             ViewMode[] navModes = { ViewMode.Generators, ViewMode.Upgrades, ViewMode.AutoBuyers, ViewMode.RebirthShop, ViewMode.Settings };
             int navWidth = (w - (pad * 6)) / 5;
 
-            for (int i = 0; i < 5; i++) {
-                var mode = navModes[i];
-                string label = navNames[i];
+            // Define the container's footprint
+            var navBar = new UIStackPanel(new Rectangle(pad, navY, w - (pad * 2), navHeight), isHorizontal: true, padding: pad);
 
-                var navBtn = new DynamicButton(
-                    new Rectangle(pad + (i * (navWidth + pad)), navY, navWidth, navHeight),
+            // Shove buttons into it and let it figure out the math
+            for (int i = 0; i < navModes.Length; i++) {
+                var mode = navModes[i];
+                var label = navNames[i];
+
+                navBar.AddChild(new DynamicButton(
+                    Rectangle.Empty, // Let the StackPanel dictate the size
                     textFunc: () => _viewMode == mode ? $"[{label}]" : label,
                     activeFunc: () => true,
-                    onClick: () => SwitchView(mode) // Wires the tab switching
-                );
-                _rootElements.Add(navBtn);
+                    onClick: () => SwitchView(mode)
+                ));
             }
+
+            _rootElements.Add(navBar);
 
             // --- 5. INITIALIZE VIEWS ---
             int listStartY = navY + navHeight + pad;

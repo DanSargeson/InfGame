@@ -29,8 +29,14 @@ namespace InfGame
         private void RecalculateLayout() {
             int currentY = Bounds.Y;
             foreach (var child in _children) {
-                child.Bounds.X = Bounds.X + _padding;
-                child.Bounds.Y = currentY;
+                // Assign a completely new Rectangle instead of modifying X and Y directly
+                child.Bounds = new Rectangle(
+                    Bounds.X + _padding,
+                    currentY,
+                    child.Bounds.Width,
+                    child.Bounds.Height
+                );
+
                 currentY += child.Bounds.Height + _padding;
             }
             _maxScroll = System.Math.Max(0, currentY - Bounds.Bottom);
