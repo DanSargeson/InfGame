@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using static Android.Provider.Contacts.Intents;
 
 namespace InfGame
@@ -107,7 +108,8 @@ namespace InfGame
 
             _saveTimer += gameTime.ElapsedGameTime.TotalSeconds;
             if (_saveTimer > 30.0) { // Save every 30s
-                _saveManager.Save(_state);
+                                     // Fire and forget off the main UI thread
+                Task.Run(() => _saveManager.Save(_state));
                 _saveTimer = 0;
             }
 

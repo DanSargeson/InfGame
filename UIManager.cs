@@ -29,6 +29,8 @@ namespace InfGame
         private UpgradesView _shopView;
         private SettingsView _settingsView;
 
+        private string _buyButtonText = "BUY: 1x";  
+
         private RasterizerState _scissorState = new RasterizerState { ScissorTestEnable = true };
 
         // A dedicated list for particles so they draw over everything else
@@ -87,13 +89,15 @@ namespace InfGame
             // --- 3. MULTI-BUY BUTTON ---
             var buyMultBtn = new DynamicButton(
                 new Rectangle(pad + w / 2 + pad, 250, w / 2 - pad * 2, 60),
-                textFunc: () => _state.BuyAmount == -1 ? "BUY: Max" : $"BUY: {_state.BuyAmount}x",
+                textFunc: () => _buyButtonText,
                 activeFunc: () => true,
                 onClick: () => {
                     if (_state.BuyAmount == 1) _state.BuyAmount = 10;
                     else if (_state.BuyAmount == 10) _state.BuyAmount = 100;
                     else if (_state.BuyAmount == 100) _state.BuyAmount = -1;
                     else _state.BuyAmount = 1;
+
+                    _buyButtonText = _state.BuyAmount == -1 ? "BUY: Max" : $"BUY: {_state.BuyAmount}x";
                 }
             );
             _rootElements.Add(buyMultBtn);

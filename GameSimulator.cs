@@ -20,6 +20,8 @@ namespace InfGame
         public event Action<string> OnAutoBuyTriggered;
         public event Action OnRebirth;
 
+        private Dictionary<string, double> _cachedGenMults = new Dictionary<string, double>();
+
         // Add a timer for automation
         public double _autoBuyTimer = 0.0;
         public double _autoBuyInterval = 1.0;
@@ -39,7 +41,7 @@ namespace InfGame
             // Safety cap for lag (max 10 ticks per frame)
             int loops = 0;
             while (_accumulator >= tickRate && loops < 10) {
-                ProcessTick();
+                ProcessTick(tickRate);
                 _accumulator -= tickRate;
                 loops++;
             }
@@ -49,22 +51,22 @@ namespace InfGame
         public int GetProceduralLevel(string seriesId) => _state._proceduralLevels.ContainsKey(seriesId) ? _state._proceduralLevels[seriesId] : 0;
 
         // The core math engine
-        private void ProcessTick() {
+        private void ProcessTick(double dt) {
             // A. Corruption Logic
             if (_state.Corruption < 1.0) {
-                _state.Corruption += _state._CurrentCorruptionGrowth * _state.TickDuration;
+                _state.Corruption += _state._CurrentCorruptionGrowth * dt;
                 if (_state.Corruption > 1.0) _state.Corruption = 1.0;
             }
 
             // B. Income Logic
-            var income = (_state.SoulsPerSecond * _state.TimeScale) * _state.TickDuration;
+            var income = (_state.SoulsPerSecond * _state.TimeScale) * dt;
             if (income > 0) {
                 _state.Souls += income;
                 _state.LifetimeSouls += income;
             }
 
             // C. Auto-Buyers (With Timer!)
-            _autoBuyTimer += _state.TickDuration;
+            _autoBuyTimer += dt;
             if (_autoBuyTimer >= _autoBuyInterval) {
                 _autoBuyTimer -= _autoBuyInterval;
 
@@ -202,44 +204,44 @@ namespace InfGame
             var total = BigDouble.Zero;
             _state.prestigeMult = BigDouble.One + (_state.RebirthPoints * _state.RebirthBonusPercent);
 
-
-            // 1. Calculate Global Multipliers once
+            // 1. Calculate Global Multipliers and populate Cache
             double globalMult = 1.0;
+            _cachedGenMults.Clear();
+
             foreach (var id in _state._purchasedUpgrades) {
                 var def = GameData.GetUpgrade(id);
-                if (def.Type == UpgradeType.GlobalMultiplier) globalMult *= def.Multiplier;
-            }
-
-            foreach (var series in GameData.UpgradeSeries) {
-                if (series.Type == UpgradeType.GlobalMultiplier) {
-                    int lvl = GetProceduralLevel(series.Id);
-                    if (lvl > 0) globalMult *= Math.Pow(series.MultiplierPerLevel, lvl);
+                if (def.Type == UpgradeType.GlobalMultiplier) {
+                    globalMult *= def.Multiplier;
+                }
+                else if (def.Type == UpgradeType.GeneratorMultiplier) {
+                    if (!_cachedGenMults.ContainsKey(def.TargetId)) _cachedGenMults[def.TargetId] = 1.0;
+                    _cachedGenMults[def.TargetId] *= def.Multiplier;
                 }
             }
 
-            // 2. Loop Generators
+            foreach (var series in GameData.UpgradeSeries) {
+                int lvl = GetProceduralLevel(series.Id);
+                if (lvl > 0) {
+                    double mult = Math.Pow(series.MultiplierPerLevel, lvl);
+                    if (series.Type == UpgradeType.GlobalMultiplier) {
+                        globalMult *= mult;
+                    }
+                    else if (series.Type == UpgradeType.GeneratorMultiplier) {
+                        if (!_cachedGenMults.ContainsKey(series.TargetId)) _cachedGenMults[series.TargetId] = 1.0;
+                        _cachedGenMults[series.TargetId] *= mult;
+                    }
+                }
+            }
+
+            // 2. Single Loop through Generators
             foreach (var kvp in _state._generatorCounts) {
                 var def = GameData.GetGenerator(kvp.Key);
                 if (def == null) continue;
 
-                // 3. Calculate Specific Multiplier for this Generator
-                double genMult = 1.0;
-                foreach (var uid in _state._purchasedUpgrades) {
-                    var uDef = GameData.GetUpgrade(uid);
-                    if (uDef.Type == UpgradeType.GeneratorMultiplier && uDef.TargetId == def.Id) {
-                        genMult *= uDef.Multiplier;
-                    }
-                }
-
-                foreach (var series in GameData.UpgradeSeries) {
-                    if (series.Type == UpgradeType.GeneratorMultiplier && series.TargetId == def.Id) {
-                        int lvl = GetProceduralLevel(series.Id);
-                        if (lvl > 0) genMult *= Math.Pow(series.MultiplierPerLevel, lvl);
-                    }
-                }
+                double specificMult = _cachedGenMults.ContainsKey(def.Id) ? _cachedGenMults[def.Id] : 1.0;
 
                 // Base * Count * GenMult * GlobalMult
-                total += def.BaseRevenue * kvp.Value * genMult * globalMult;
+                total += def.BaseRevenue * kvp.Value * specificMult * globalMult;
             }
             _state.SoulsPerSecond = total * _state.prestigeMult;
         }
@@ -332,7 +334,7 @@ namespace InfGame
             }
 
             for (int i = 0; i < ticks; i++) {
-                ProcessTick();
+                ProcessTick(simulatedDt);
             }
         }
 
@@ -342,7 +344,7 @@ namespace InfGame
             // This ensures offline progress respects Corruption, AutoBuyers, etc.
             double simulatedDt = 0.1; // 10 ticks per simulated second
             for (double t = 0; t < totalSeconds; t += simulatedDt) {
-                ProcessTick();
+                ProcessTick(simulatedDt);
             }
         }
     }
