@@ -4,17 +4,13 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace InfGame
 {
-    public sealed class UiButton
+    public class UiButton : UIElement
     {
-        // "Logical" bounds (where it sits in the long list, ignoring scroll)
-        public Rectangle Bounds;
+
         public string Text;
-
         private float _scale = 1.0f;
-
         public Action OnClick;
         public bool IsActive = true; // Can we afford it?
-
         private float _flashTimer = 0f; // For the visual "pop"
         public object Tag; // Optional user data
 
@@ -31,13 +27,23 @@ namespace InfGame
             _scale = 0.95f;
         }
 
-        public void Update(double dt) {
+        public override  void Update(double dt, GameState state) {
             if (_flashTimer > 0) _flashTimer -= (float)dt;
 
             if (_scale < 1.0f) {
                 _scale += (float)dt * 2.0f; // Speed of recovery
                 if (_scale > 1.0f) _scale = 1.0f;
             }
+        }
+
+        public override bool HandleTap(Point p) {
+            if (IsActive && Bounds.Contains(p)) {
+                _flashTimer = 0.15f;
+                _scale = 0.95f;
+                OnClick?.Invoke();
+                return true; // Input was consumed
+            }
+            return false;
         }
 
         public void Configure(Rectangle bounds, string text, Action onClick) {
@@ -51,7 +57,7 @@ namespace InfGame
             _flashTimer = 0f;
         }
 
-        public void Draw(SpriteBatch sb, SpriteFont font, Texture2D pixel, int scrollOffset = 0) {
+        public override void Draw(SpriteBatch sb, SpriteFont font, Texture2D pixel, int scrollOffset = 0) {
             // Calculate center for scaling
             var screenRect = new Rectangle(Bounds.X, Bounds.Y - scrollOffset, Bounds.Width, Bounds.Height);
             Vector2 center = new Vector2(screenRect.X + screenRect.Width / 2f, screenRect.Y + screenRect.Height / 2f);

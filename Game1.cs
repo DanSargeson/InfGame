@@ -98,6 +98,8 @@ namespace InfGame
 
         protected override void Update(GameTime gameTime) {
 
+            var dt = gameTime.ElapsedGameTime.TotalSeconds;
+
             _saveTimer += gameTime.ElapsedGameTime.TotalSeconds;
             if (_saveTimer > 30.0) { // Save every 30s
                 Save();
@@ -105,8 +107,8 @@ namespace InfGame
             }
 
             _inputManager.Update();
-            _sim.Update(gameTime.ElapsedGameTime.TotalSeconds);
-            _uiManager.Update(gameTime);
+            _sim.Update(dt);
+            _uiManager.Update(dt);
             base.Update(gameTime);
         }
 
@@ -157,13 +159,10 @@ namespace InfGame
                         var soulsAfter = _state.Souls;
                         var earned = soulsAfter - soulsBefore;
 
-                        // 5. Update UI
-                        _uiManager._offlineEarnings = earned;
-                        _uiManager._offlineTimeText = $"Offline for: {(int)timeSpan.TotalHours}h {timeSpan.Minutes}m";
-
-                        // Only show modal if we actually earned something or were gone for > 1 minute
+                        // 5. Tell the UI to handle the offline earnings
                         if (secondsOffline > 60) {
-                            _uiManager._showWelcomeModal = true;
+                            TimeSpan timeOffline = TimeSpan.FromSeconds(secondsOffline);
+                            _uiManager.ShowOfflineReport(earned, timeOffline);
                         }
                     }
                 }
