@@ -34,8 +34,7 @@ namespace InfGame
         public double TargetTicksPerSecond { get; private set; } = 10.0;
         public double TickDuration => 1.0 / TargetTicksPerSecond;
 
-        public double PurificationAmount = 0.05;
-        public double _BaseCorruptionGrowthRate = 0.001;
+       
         public double _CorruptionGrowthAccleration = 0.0001;
 
         // Runtime simulation variables (Not crucial to save, but good to keep state)
@@ -47,7 +46,7 @@ namespace InfGame
         // These are fine to keep here as they describe the STATE of the world
         public double CorruptionBonus => 1.0 + (Math.Pow(Corruption, 4) * 3.0);
         public double TimeScale => Math.Max(0.01, 1.0 - Corruption);
-        public double RebirthBonusPercent => 0.10;
+        public double RebirthBonusPercent => GameData.Rules.RebirthBonusPercent;
 
         // --- 5. HELPER METHODS (Read-Only) ---
         public int GetCount(string id) => _generatorCounts.ContainsKey(id) ? _generatorCounts[id] : 0;
@@ -92,8 +91,8 @@ namespace InfGame
             LastSavedUtc = data.LastSavedUtc;
 
             Corruption = data.Corruption;
-            if (_CurrentCorruptionGrowth < _BaseCorruptionGrowthRate) {
-                _CurrentCorruptionGrowth = _BaseCorruptionGrowthRate;
+            if (_CurrentCorruptionGrowth < GameData.Rules.BaseCorruptionGrowth) {
+                _CurrentCorruptionGrowth = GameData.Rules.BaseCorruptionGrowth;
             }
             //_CurrentCorruptionGrowth = data.CurrentCorruptionGrowth;
 

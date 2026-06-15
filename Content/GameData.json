@@ -1,4 +1,13 @@
 {
+
+	"Rules": {
+    "BaseCorruptionGrowth": 0.001,
+    "PurificationAmount": 0.05,
+    "RebirthLifetimeThreshold": 1000000.0,
+    "RebirthExponent": 0.3333333333333333,
+    "MaxOfflineSeconds": 86400.0,
+    "RebirthBonusPercent": 0.10
+  },
   "Generators": [
     {
       "Id": "gen_t1",

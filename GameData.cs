@@ -132,6 +132,7 @@ namespace InfGame
     // Helper class to match the JSON root structure
     public class GameDataContainer
     {
+        public GameRulesConfig Rules { get; set; }
         public List<GeneratorDef> Generators { get; set; }
         public List<UpgradeDef> Upgrades { get; set; }
         public List<UpgradeSeriesDef> UpgradeSeries { get; set; }
@@ -142,6 +143,8 @@ namespace InfGame
         public static List<GeneratorDef> Generators { get; private set; } = new();
         public static List<UpgradeDef> Upgrades { get; private set; } = new();
         public static List<UpgradeSeriesDef> UpgradeSeries { get; private set; } = new();
+
+        public static GameRulesConfig Rules { get; private set; } = new GameRulesConfig();
 
         public static void Load(string jsonContent) {
             var options = new JsonSerializerOptions {
@@ -156,6 +159,9 @@ namespace InfGame
             var data = JsonSerializer.Deserialize<GameDataContainer>(jsonContent, options);
 
             if (data != null) {
+
+                if (data.Rules != null) Rules = data.Rules;
+
                 Generators = data.Generators ?? new List<GeneratorDef>();
                 Upgrades = data.Upgrades ?? new List<UpgradeDef>();
                 UpgradeSeries = data.UpgradeSeries ?? new List<UpgradeSeriesDef>();

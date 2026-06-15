@@ -13,6 +13,8 @@ namespace InfGame
         // Time Banking
         private double _accumulator = 0.0;
 
+        public EconomyEngine Economy { get; private set; }
+
         // EVENTS: The UI subscribes to these!
         public event Action<BigDouble> OnCurrencyGained;
         public event Action<string> OnAutoBuyTriggered;
@@ -24,6 +26,7 @@ namespace InfGame
 
         public GameSimulator(GameState state) {
             _state = state;
+            Economy = new EconomyEngine(_state);    
         }
 
         public void Update(double dt) {
@@ -133,12 +136,12 @@ namespace InfGame
 
             // Handle "Max" mode
             if (_state.BuyAmount == -1) {
-                amountToBuy = GetMaxBuyable(id);
+                amountToBuy = Economy.GetMaxBuyable(id);
                 if (amountToBuy <= 0) return false; // Can't afford even 1
             }
 
             // 1. Calculate the REAL total cost
-            var totalCost = GetBulkCost(id, amountToBuy);
+            var totalCost = Economy.GetBulkCost(id, amountToBuy);
 
             // 2. CHECK: Can we afford the TOTAL, not just one?
             // FIX: Changed 'cost' to 'totalCost'
@@ -160,20 +163,12 @@ namespace InfGame
             return true;
         }
 
-        public BigDouble GetProceduralCost(string seriesId) {
-            var def = GameData.GetSeries(seriesId);
-            if (def == null) return BigDouble.Zero;
-
-            int currentLevel = GetProceduralLevel(seriesId);
-            // Formula: Base * (Growth ^ Level)
-            return def.BaseCost * BigDouble.Pow(def.CostMultiplier, currentLevel);
-        }
 
         public bool TryBuyProceduralUpgrade(string seriesId) {
             var def = GameData.GetSeries(seriesId);
             if (def == null) return false;
 
-            var cost = GetProceduralCost(seriesId);
+            var cost = Economy.GetProceduralCost(seriesId);
 
             // Currency Check
             if (def.CostCurrency == CurrencyType.Souls) {
@@ -197,10 +192,10 @@ namespace InfGame
         }
 
         private void PurifyCorruption(int amount) {
-            double reduction = _state.PurificationAmount + (amount * 0.01);
+            double reduction = GameData.Rules.PurificationAmount + (amount * 0.01);
             _state.Corruption -= reduction;
             if (_state.Corruption < 0.0) _state.Corruption = 0.0;
-            _state._CurrentCorruptionGrowth = _state._BaseCorruptionGrowthRate; // Reset growth rate
+            _state._CurrentCorruptionGrowth = GameData.Rules.BaseCorruptionGrowth;
         }
 
         public void RecalcCps() {
@@ -249,53 +244,6 @@ namespace InfGame
             _state.SoulsPerSecond = total * _state.prestigeMult;
         }
 
-        // Helper: Calculate Max we can afford
-        public int GetMaxBuyable(string id) {
-            var def = GameData.GetGenerator(id);
-            if (def == null) return 0;
-
-            var nextCost = GetCost(id);
-            if (_state.Souls < nextCost) return 0;
-
-            double r = def.CostMultiplier;
-
-            // Formula derived from Geometric Sum Inverse:
-            // Max = Log_r( (Coins * (r-1) / NextCost) + 1 )
-
-            var term = (_state.Souls * (r - 1.0)) / nextCost;
-            var logValue = BigDouble.Log10(term + 1.0) / Math.Log10(r);
-
-            return (int)Math.Floor(logValue);
-        }
-
-
-        // Helper: Calculate Cost for 'count' items
-        public BigDouble GetBulkCost(string id, int count) {
-            var def = GameData.GetGenerator(id);
-            if (def == null) return BigDouble.Zero;
-
-            // Current price of the NEXT single unit
-            var nextCost = GetCost(id);
-            double r = def.CostMultiplier; // e.g., 1.15
-
-            // If buying 1, standard logic
-            if (count == 1) return nextCost;
-
-            // Geometric Sum: Cost * (r^N - 1) / (r - 1)
-            var numerator = BigDouble.Pow(r, count) - 1.0;
-            var denominator = r - 1.0;
-
-            return nextCost * (numerator / denominator);
-        }
-
-        public BigDouble GetCost(string id) {
-            var def = GameData.GetGenerator(id);
-            if (def == null) return BigDouble.Zero;
-
-            int count = _state.GetCount(id);
-            // Math: BaseCost * (1.15 ^ Count)
-            return def.BaseCost * Math.Pow(def.CostMultiplier, count);
-        }
 
         public void RecalcTap() {
             double mult = 1.0;
@@ -336,22 +284,9 @@ namespace InfGame
             _state.Souls += _state.TapValue;
         }
 
-        public BigDouble CalculateRebirthGain() {
-            // Threshold: Don't give points for pocket change
-            if (_state.LifetimeSouls < 1000000) return BigDouble.Zero;
-
-            // Formula: (Lifetime / 1M) ^ (1/3)
-            var baseVal = _state.LifetimeSouls / 1000000.0;
-            var gain = BigDouble.Pow(baseVal, 1.0 / 3.0);
-
-            gain += _state.CorruptionBonus;
-
-            return BigDouble.Floor(gain);
-        }
-
 
         public void DoRebirth() {
-            var gain = CalculateRebirthGain();
+            var gain = Economy.CalculateRebirthGain();
             if (gain < 1) return; // Safety check
 
             // 1. Bank the Points
@@ -377,12 +312,14 @@ namespace InfGame
             RecalcCps();
 
             _state.Corruption = 0.0; // Reset Corruption
-            _state._CurrentCorruptionGrowth = _state._BaseCorruptionGrowthRate; // Reset growth rate
+            _state._CurrentCorruptionGrowth = GameData.Rules.BaseCorruptionGrowth;
         }
 
         public void ApplyOfflineProgress(double seconds) {
             // Cap offline time (e.g. 24 hours)
-            if (seconds > 86400) seconds = 86400;
+            if (seconds > GameData.Rules.MaxOfflineSeconds) {
+                seconds = GameData.Rules.MaxOfflineSeconds;
+            }
 
             // Simulate in chunks (e.g. 1000 ticks) to prevent freezing
             double simulatedDt = 1.0; // Simulate 1 second per tick for speed
