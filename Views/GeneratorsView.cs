@@ -11,6 +11,9 @@ namespace InfGame
         private GameState _state;
         private GameSimulator _sim;
 
+        private int _lastBuyAmount = -999;
+        private int _lastCount = -1;
+
         // --- NEW: Internal Scroll State ---
         private float _scrollY = 0;
         private float _maxScroll = 0;
@@ -61,7 +64,7 @@ namespace InfGame
 
                     // 1. Determine how many we are trying to buy
                     int amount = _state.BuyAmount;
-                    string prefix = $"x{amount}";
+                    string prefix = string.Empty;
 
                     // Handle "Max" mode specifically
                     if (amount == -1) {
@@ -79,8 +82,13 @@ namespace InfGame
                     var totalCost = _sim.Economy.GetBulkCost(genDef.Id, amount);
                     var currentCount = _state.GetCount(genDef.Id);
 
-                    // 3. Format the text and toggle the active state
-                    btn.Text = $"{genDef.Name} ({currentCount})\n{prefix}: {NumberFormat.Compact(totalCost)}";
+                    if (_lastBuyAmount != amount || _lastCount != currentCount) {
+                        prefix = (amount == -1) ? "Max" : $"x{amount}";
+                        btn.Text = $"{genDef.Name} ({currentCount})\n{prefix}: {NumberFormat.Compact(totalCost)}";
+
+                        _lastBuyAmount = amount;
+                        _lastCount = currentCount;
+                    }
 
                     // Turn red if we can't afford it
                     btn.IsActive = _state.Souls >= totalCost;

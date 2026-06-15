@@ -46,6 +46,14 @@ namespace InfGame
 
         // 2. Restore the Floating Text spawner for your AutoBuyers and Taps
         public void SpawnFloatingText(Vector2 pos, string text, Color color) {
+            for (int i = 0; i < _particles.Count; i++) {
+                if (!_particles[i].IsActive) {
+                    _particles[i].Reset(pos, text, color);
+                    return;
+                }
+            }
+
+            // 2. Only allocate if the pool is full
             _particles.Add(new FloatingText(pos, text, color));
         }
 
@@ -170,10 +178,9 @@ namespace InfGame
             _activeView?.Update(dt);
 
             // Update Particles
-            for (int i = _particles.Count - 1; i >= 0; i--) {
-                _particles[i].Update(dt);
-                if (!_particles[i].IsActive) {
-                    _particles.RemoveAt(i);
+            for (int i = 0; i < _particles.Count; i++) {
+                if (_particles[i].IsActive) {
+                    _particles[i].Update(dt);
                 }
             }
         }
