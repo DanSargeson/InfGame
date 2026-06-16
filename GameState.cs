@@ -84,6 +84,32 @@ namespace InfGame
             };
         }
 
+        public GameState Clone() {
+            var clone = new GameState {
+                Souls = this.Souls,
+                LifetimeSouls = this.LifetimeSouls,
+                RebirthPoints = this.RebirthPoints,
+                Corruption = this.Corruption,
+                BuyAmount = this.BuyAmount,
+                TapValue = this.TapValue,
+                SoulsPerSecond = this.SoulsPerSecond,
+
+                CurrentCorruptionGrowth = this._CurrentCorruptionGrowth,
+                prestigeMult = this.prestigeMult
+               // CorruptionBonus = this.CorruptionBonus,
+
+
+                //TOTO check if I missed any..
+            };
+
+            // Deep copy collections to avoid thread collisions
+            clone._purchasedUpgrades = new HashSet<string>(this._purchasedUpgrades);
+            clone._generatorCounts = new Dictionary<string, int>(this._generatorCounts);
+            clone._proceduralLevels = new Dictionary<string, int>(this._proceduralLevels);
+
+            return clone;
+        }
+
         public void LoadFrom(SaveData data) {
             Souls = data.Souls;
             LifetimeSouls = data.LifetimeSouls;

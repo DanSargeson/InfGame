@@ -17,6 +17,7 @@ namespace InfGame
         public double Mantissa;
         public long Exponent;
 
+        public static readonly BigDouble MinusOne = new BigDouble(-1, 0);
         public static readonly BigDouble Zero = new BigDouble(0, 0);
         public static readonly BigDouble One = new BigDouble(1, 0);
 

@@ -109,7 +109,10 @@ namespace InfGame
             _saveTimer += gameTime.ElapsedGameTime.TotalSeconds;
             if (_saveTimer > 30.0) { // Save every 30s
                                      // Fire and forget off the main UI thread
-                Task.Run(() => _saveManager.Save(_state));
+                var stateSnapshot = _state.Clone();
+
+                // 2. Pass the snapshot to the background thread
+                Task.Run(() => _saveManager.Save(stateSnapshot));
                 _saveTimer = 0;
             }
 

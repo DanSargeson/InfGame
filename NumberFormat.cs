@@ -15,7 +15,9 @@ namespace InfGame
 
             // 1. Small Numbers (Under 1000)
             if (value.Exponent < 3) {
-                return value.ToDouble().ToString($"F{decimals}", CultureInfo.InvariantCulture);
+                // Avoid string interpolation allocation
+                string formatStr = decimals == 2 ? "F2" : decimals == 1 ? "F1" : "F0";
+                return value.ToDouble().ToString(formatStr, CultureInfo.InvariantCulture);
             }
 
             // 2. Suffixes (1,000 to 1 Quintillion)
@@ -23,14 +25,11 @@ namespace InfGame
             int index = (int)(value.Exponent / 3);
 
             if (index < Suffix.Length) {
-                // Calculate the "visual" number. 
-                // e.g. 1.25e4 (12,500) -> Index 1 (K). 
-                // We want to see "12.50". 
-                // Math: 1.25 * 10^(4 - 1*3) = 1.25 * 10^1 = 12.5
                 double divisorPower = index * 3;
                 double scaledMantissa = value.Mantissa * Math.Pow(10, value.Exponent - divisorPower);
 
-                return $"{scaledMantissa.ToString($"F{decimals}", CultureInfo.InvariantCulture)}{Suffix[index]}";
+                string formatStr = decimals == 2 ? "F2" : decimals == 1 ? "F1" : "F0";
+                return $"{scaledMantissa.ToString(formatStr, CultureInfo.InvariantCulture)}{Suffix[index]}";
             }
 
             // 3. Massive Numbers (Scientific Notation)

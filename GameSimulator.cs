@@ -20,7 +20,7 @@ namespace InfGame
         public event Action<string> OnAutoBuyTriggered;
         public event Action OnRebirth;
 
-        private Dictionary<string, double> _cachedGenMults = new Dictionary<string, double>();
+        private Dictionary<string, double> _cachedGenMults = new Dictionary<string, double>(64);
 
         // Add a timer for automation
         public double _autoBuyTimer = 0.0;

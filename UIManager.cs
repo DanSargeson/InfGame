@@ -76,18 +76,33 @@ namespace InfGame
             int h = _graphicsDevice.Viewport.Height;
             int pad = 20;
 
+            BigDouble lastCalculatedGain = BigDouble.MinusOne; // Force initial update
+            string cachedRebirthText = "";
+            bool cachedRebirthActive = false;
+
             // --- 1. REBIRTH BUTTON ---
             var prestigeBtn = new DynamicButton(
-                new Rectangle(pad, 80, w - pad * 2, 80),
-                textFunc: () => {
-                    var gain = _sim.Economy.CalculateRebirthGain();
-                    return gain > 0
-                        ? $"REBIRTH: +{NumberFormat.Compact(gain)} PTS\n(+{gain.ToDouble() * 10}% Bonus)"
-                        : "Rebirth Locked (1M Souls)";
-                },
-                activeFunc: () => _sim.Economy.CalculateRebirthGain() > 0,
-                onClick: () => _sim.DoRebirth()
-            );
+    new Rectangle(pad, 80, w - pad * 2, 80),
+    textFunc: () => {
+        var currentGain = _sim.Economy.CalculateRebirthGain();
+
+        // Only allocate a new string IF the math actually changed
+        if (currentGain != lastCalculatedGain) {
+            lastCalculatedGain = currentGain;
+            cachedRebirthActive = currentGain > 0;
+
+            if (cachedRebirthActive) {
+                cachedRebirthText = $"REBIRTH: +{NumberFormat.Compact(currentGain)} PTS\n(+{currentGain.ToDouble() * 10}% Bonus)";
+            }
+            else {
+                cachedRebirthText = "Rebirth Locked (1M Souls)";
+            }
+        }
+        return cachedRebirthText;
+    },
+    activeFunc: () => cachedRebirthActive, // Reuse the cached boolean
+    onClick: () => _sim.DoRebirth()
+);
             _rootElements.Add(prestigeBtn);
 
             // --- 2. STATUS BOARD ---
@@ -125,9 +140,12 @@ namespace InfGame
                 var mode = navModes[i];
                 var label = navNames[i];
 
+                // Pre-allocate the active string ONCE during setup
+                string activeLabel = $"[{label}]";
+
                 navBar.AddChild(new DynamicButton(
-                    Rectangle.Empty, // Let the StackPanel dictate the size
-                    textFunc: () => _viewMode == mode ? $"[{label}]" : label,
+                    Rectangle.Empty,
+                    textFunc: () => _viewMode == mode ? activeLabel : label, // Zero allocations here
                     activeFunc: () => true,
                     onClick: () => SwitchView(mode)
                 ));
